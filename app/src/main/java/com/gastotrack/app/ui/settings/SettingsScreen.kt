@@ -1,6 +1,8 @@
 package com.gastotrack.app.ui.settings
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,11 +32,11 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
@@ -45,7 +47,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -73,6 +74,10 @@ import com.gastotrack.app.data.local.dao.BankRuleDao
 import com.gastotrack.app.data.local.entities.BankRuleEntity
 import com.gastotrack.app.service.NotificationRuleEvaluator
 import com.gastotrack.app.service.RuleEvaluationResult
+import com.gastotrack.app.ui.theme.PixelCardShape
+import com.gastotrack.app.ui.theme.PixelDialogShape
+import com.gastotrack.app.ui.theme.PixelInputShape
+import com.gastotrack.app.ui.theme.PixelPillShape
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
@@ -101,19 +106,21 @@ fun SettingsScreen(
     var draftMerchantRegex by rememberSaveable { mutableStateOf("") }
     var draftIsEnabled by rememberSaveable { mutableStateOf(true) }
 
-    // Texto de prueba del Sandbox y resultado en vivo
+    // Texto de prueba de notificación ingresado por el usuario
     var sampleNotificationText by rememberSaveable {
-        mutableStateOf("BBVA: Compra realizada por $485.50 MXN en STARBUCKS COFFEE con tu tarjeta digital.")
+        mutableStateOf("BBVA: Compra realizada por $450.50 MXN en STARBUCKS con tu tarjeta terminación 1234.")
     }
+
+    // Resultado de la simulación
     var evaluationResult by remember { mutableStateOf<RuleEvaluationResult?>(null) }
 
-    // Estado para el modal de creación/edición directa desde la lista
+    // Estado del Modal de Crear / Editar regla completa
+    var showRuleModal by rememberSaveable { mutableStateOf(false) }
     var ruleModalTarget by remember { mutableStateOf<BankRuleEntity?>(null) }
-    var showRuleModal by remember { mutableStateOf(false) }
 
-    // Sincronizar la regla seleccionada cuando cargan las reglas de Room
+    // Cargar la primera regla disponible por defecto en el Sandbox
     LaunchedEffect(rules) {
-        if (rules.isNotEmpty() && (selectedRuleId == null || rules.none { it.id == selectedRuleId })) {
+        if (selectedRuleId == null && rules.isNotEmpty()) {
             val first = rules.first()
             selectedRuleId = first.id
             draftBankName = first.bankName
@@ -141,12 +148,12 @@ fun SettingsScreen(
     fun buildCurrentDraftRule(): BankRuleEntity {
         return BankRuleEntity(
             id = selectedRuleId ?: 0L,
-            bankName = draftBankName.trim().ifEmpty { "Banco" },
-            packageOrTitleFilter = draftFilter.trim(),
-            positiveKeywords = draftPositiveKeywords.trim(),
-            negativeKeywords = draftNegativeKeywords.trim(),
-            amountRegex = draftAmountRegex.trim().ifEmpty { BankRuleEntity.DEFAULT_AMOUNT_REGEX },
-            merchantRegex = draftMerchantRegex.trim().ifEmpty { null },
+            bankName = draftBankName.ifBlank { "Banco Personalizado" },
+            packageOrTitleFilter = draftFilter.ifBlank { "app" },
+            positiveKeywords = draftPositiveKeywords,
+            negativeKeywords = draftNegativeKeywords,
+            amountRegex = draftAmountRegex.ifBlank { BankRuleEntity.DEFAULT_AMOUNT_REGEX },
+            merchantRegex = draftMerchantRegex.ifBlank { null },
             isEnabled = draftIsEnabled
         )
     }
@@ -159,11 +166,11 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -172,12 +179,12 @@ fun SettingsScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Gestor de Bancos",
-                            style = MaterialTheme.typography.headlineSmall,
+                            style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Configura las reglas dinámicas de lectura de notificaciones",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = "Configura reglas dinámicas de lectura para notificaciones",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -185,11 +192,15 @@ fun SettingsScreen(
                         onClick = {
                             ruleModalTarget = BankRuleEntity.createDefaultTemplate("Mercado Pago")
                             showRuleModal = true
-                        }
+                        },
+                        shape = PixelPillShape
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Nueva Regla")
+                        Text(
+                            text = "Nueva Regla",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -212,7 +223,7 @@ fun SettingsScreen(
                     onLoadInPlayground = {
                         selectRuleForPlayground(rule)
                         coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Regla '${rule.bankName}' cargada en el Área de Pruebas")
+                            snackbarHostState.showSnackbar("Regla '${rule.bankName}' cargada en el Sandbox")
                         }
                     },
                     onDeleteClick = {
@@ -225,38 +236,51 @@ fun SettingsScreen(
             }
 
             item {
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 4.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
             }
 
             // SECCIÓN 2: ÁREA DE PRUEBAS (NOTIFICATION PLAYGROUND)
             item {
-                ElevatedCard(
+                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.elevatedCardColors(
+                    shape = PixelCardShape,
+                    colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                     )
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Science,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(PixelPillShape)
+                                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Science,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Área de Pruebas (Notification Playground)",
+                                    text = "Área de Pruebas (Sandbox)",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Simula notificaciones reales y ajusta las expresiones regulares en vivo",
+                                    text = "Simula notificaciones reales y calibra las expresiones regulares en vivo",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -272,7 +296,8 @@ fun SettingsScreen(
                                 value = draftBankName.ifEmpty { "Selecciona un banco" },
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text("Banco a probar") },
+                                label = { Text("Banco a calibrar") },
+                                shape = PixelInputShape,
                                 trailingIcon = {
                                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = bankDropdownExpanded)
                                 },
@@ -287,7 +312,10 @@ fun SettingsScreen(
                                 rules.forEach { ruleItem ->
                                     DropdownMenuItem(
                                         text = {
-                                            Text("${ruleItem.bankName} (${ruleItem.packageOrTitleFilter})")
+                                            Text(
+                                                text = "${ruleItem.bankName} (${ruleItem.packageOrTitleFilter})",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
                                         },
                                         onClick = {
                                             selectRuleForPlayground(ruleItem)
@@ -305,6 +333,7 @@ fun SettingsScreen(
                             label = { Text("Palabras clave positivas (separadas por coma)") },
                             singleLine = false,
                             maxLines = 2,
+                            shape = PixelInputShape,
                             modifier = Modifier.fillMaxWidth()
                         )
 
@@ -314,6 +343,7 @@ fun SettingsScreen(
                             label = { Text("Palabras clave de exclusión (negativas)") },
                             singleLine = false,
                             maxLines = 2,
+                            shape = PixelInputShape,
                             modifier = Modifier.fillMaxWidth()
                         )
 
@@ -322,6 +352,7 @@ fun SettingsScreen(
                             onValueChange = { draftAmountRegex = it },
                             label = { Text("Regex de Monto (Grupo 1)") },
                             singleLine = true,
+                            shape = PixelInputShape,
                             modifier = Modifier.fillMaxWidth()
                         )
 
@@ -330,24 +361,30 @@ fun SettingsScreen(
                             onValueChange = { draftMerchantRegex = it },
                             label = { Text("Regex de Comercio (Opcional, Grupo 1)") },
                             singleLine = true,
+                            shape = PixelInputShape,
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        // Ejemplos rápidos de prueba de 1 toque
+                        // Ejemplos rápidos de prueba de 1 toque (Pixel Pill Chips)
                         Text(
-                            text = "Ejemplos rápidos para probar:",
+                            text = "Ejemplos reales de notificación:",
                             style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             AssistChip(
                                 onClick = {
                                     sampleNotificationText =
                                         "BBVA: Compra realizada por $1,249.90 MXN en AMAZON MEXICO con tu tarjeta terminación 4012."
                                 },
+                                shape = PixelPillShape,
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                ),
                                 label = { Text("Compra BBVA") }
                             )
                             AssistChip(
@@ -355,6 +392,10 @@ fun SettingsScreen(
                                     sampleNotificationText =
                                         "BanCoppel: Se realizó un cargo por $320.00 en OXXO CULIACAN con tu tarjeta de débito."
                                 },
+                                shape = PixelPillShape,
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                ),
                                 label = { Text("Cargo BanCoppel") }
                             )
                             AssistChip(
@@ -362,6 +403,10 @@ fun SettingsScreen(
                                     sampleNotificationText =
                                         "Nu: Compra aprobada por $185.00 en UBER TRIP con tu tarjeta Morada."
                                 },
+                                shape = PixelPillShape,
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                ),
                                 label = { Text("Compra Nu") }
                             )
                             AssistChip(
@@ -369,20 +414,25 @@ fun SettingsScreen(
                                     sampleNotificationText =
                                         "BBVA: Recibiste un abono de $3,500.00 MXN por transferencia SPEI."
                                 },
-                                label = { Text("Abono (Excluido)") }
+                                shape = PixelPillShape,
+                                colors = AssistChipDefaults.assistChipColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                                ),
+                                label = { Text("Abono (Ignorado)") }
                             )
                         }
 
-                        // OutlinedTextField multilinea requerido
+                        // OutlinedTextField multilinea
                         OutlinedTextField(
                             value = sampleNotificationText,
                             onValueChange = { sampleNotificationText = it },
-                            label = { Text("Pega aquí el texto de la notificación de tu banco") },
+                            label = { Text("Pega aquí el texto de la notificación bancaria") },
                             placeholder = {
                                 Text("Ej: Compra aprobada por $250.00 MXN en SUPERMERCADO...")
                             },
                             minLines = 3,
                             maxLines = 5,
+                            shape = PixelInputShape,
                             modifier = Modifier.fillMaxWidth()
                         )
 
@@ -395,15 +445,23 @@ fun SettingsScreen(
                                     fullNotificationText = sampleNotificationText
                                 )
                             },
+                            shape = PixelPillShape,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(Icons.Default.PlayArrow, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Probar lectura")
+                            Text(
+                                text = "Probar Lectura en Tiempo Real",
+                                fontWeight = FontWeight.Bold
+                            )
                         }
 
                         // Tarjeta de Resultados en tiempo real
-                        AnimatedVisibility(visible = evaluationResult != null) {
+                        AnimatedVisibility(
+                            visible = evaluationResult != null,
+                            enter = fadeIn(),
+                            exit = fadeOut()
+                        ) {
                             evaluationResult?.let { result ->
                                 PlaygroundResultCard(
                                     result = result,
@@ -430,7 +488,7 @@ fun SettingsScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(88.dp))
             }
         }
     }
@@ -466,22 +524,23 @@ private fun BankRuleItemCard(
     onLoadInPlayground: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
-    OutlinedCard(
+    Card(
         onClick = onLoadInPlayground,
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.outlinedCardColors(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
             containerColor = if (isSelectedInPlayground) {
-                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f)
             } else {
-                MaterialTheme.colorScheme.surface
+                MaterialTheme.colorScheme.surfaceContainerLow
             }
         )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -494,22 +553,23 @@ private fun BankRuleItemCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(10.dp)
+                            .size(12.dp)
                             .clip(CircleShape)
                             .background(
                                 if (rule.isEnabled) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.outline
+                                else MaterialTheme.colorScheme.outlineVariant
                             )
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
                             text = rule.bankName,
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Filtro: ${rule.packageOrTitleFilter}",
+                            text = "Filtro de App: ${rule.packageOrTitleFilter}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -525,6 +585,7 @@ private fun BankRuleItemCard(
             Text(
                 text = "Positivas: ${rule.positiveKeywords}",
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
             Text(
@@ -539,15 +600,22 @@ private fun BankRuleItemCard(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onLoadInPlayground) {
-                    Text("Probar en Sandbox")
+                TextButton(
+                    onClick = onLoadInPlayground,
+                    shape = PixelPillShape
+                ) {
+                    Text("Calibrar")
                 }
                 IconButton(onClick = onEditClick) {
-                    Icon(Icons.Default.Edit, contentDescription = "Editar regla")
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Editar regla",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 IconButton(onClick = onDeleteClick) {
                     Icon(
-                        Icons.Default.Delete,
+                        imageVector = Icons.Default.Delete,
                         contentDescription = "Eliminar regla",
                         tint = MaterialTheme.colorScheme.error
                     )
@@ -576,7 +644,7 @@ private fun PlaygroundResultCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = containerColor,
             contentColor = contentColor
@@ -585,7 +653,7 @@ private fun PlaygroundResultCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -596,9 +664,9 @@ private fun PlaygroundResultCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = if (result.isMatched) {
-                        "Estado: VÁLIDA (Coincidencia exitosa)"
+                        "Estado: COINCIDENCIA VÁLIDA"
                     } else {
-                        "Estado: DESCARTADA"
+                        "Estado: NOTIFICACIÓN DESCARTADA"
                     },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
@@ -608,7 +676,7 @@ private fun PlaygroundResultCard(
             if (result.isMatched && result.extractedAmount != null) {
                 Text(
                     text = currencyFormatter.format(result.extractedAmount),
-                    fontSize = 32.sp,
+                    style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.ExtraBold,
                     fontFamily = FontFamily.Monospace
                 )
@@ -633,11 +701,12 @@ private fun PlaygroundResultCard(
 
             OutlinedButton(
                 onClick = onSaveRuleChanges,
+                shape = PixelPillShape,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Guardar cambios de la regla")
+                Text("Guardar cambios en esta regla")
             }
         }
     }
@@ -658,16 +727,23 @@ private fun RuleEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = PixelDialogShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         title = {
-            Text(if (initialRule.id == 0L) "Nueva Regla Bancaria" else "Editar Regla: ${initialRule.bankName}")
+            Text(
+                text = if (initialRule.id == 0L) "Nueva Regla Bancaria" else "Editar: ${initialRule.bankName}",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
                     value = bankName,
                     onValueChange = { bankName = it },
                     label = { Text("Nombre del Banco") },
                     singleLine = true,
+                    shape = PixelInputShape,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -676,18 +752,21 @@ private fun RuleEditDialog(
                     label = { Text("Filtro de Paquete o Título") },
                     placeholder = { Text("Ej: com.bbva.app, bbva") },
                     singleLine = true,
+                    shape = PixelInputShape,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = posKeywords,
                     onValueChange = { posKeywords = it },
                     label = { Text("Palabras Positivas (separadas por coma)") },
+                    shape = PixelInputShape,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = negKeywords,
                     onValueChange = { negKeywords = it },
                     label = { Text("Palabras Negativas (separadas por coma)") },
+                    shape = PixelInputShape,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -695,6 +774,7 @@ private fun RuleEditDialog(
                     onValueChange = { amountRegex = it },
                     label = { Text("Regex de Monto") },
                     singleLine = true,
+                    shape = PixelInputShape,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
@@ -702,6 +782,7 @@ private fun RuleEditDialog(
                     onValueChange = { merchantRegex = it },
                     label = { Text("Regex de Comercio (Opcional)") },
                     singleLine = true,
+                    shape = PixelInputShape,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -720,13 +801,20 @@ private fun RuleEditDialog(
                             merchantRegex = merchantRegex.trim().ifEmpty { null }
                         )
                     )
-                }
+                },
+                shape = PixelPillShape
             ) {
-                Text("Guardar")
+                Text(
+                    text = "Guardar Regla",
+                    fontWeight = FontWeight.Bold
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = PixelPillShape
+            ) {
                 Text("Cancelar")
             }
         }

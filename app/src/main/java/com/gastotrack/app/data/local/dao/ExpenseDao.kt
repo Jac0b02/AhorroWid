@@ -109,4 +109,26 @@ interface ExpenseDao {
 
     @Query("SELECT * FROM expenses ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecentExpenses(limit: Int = 100): Flow<List<ExpenseEntity>>
+
+    @Query(
+        """
+        SELECT 
+            COALESCE(SUM(amount), 0.0) AS total,
+            COALESCE(SUM(CASE WHEN source = 'CARD' THEN amount ELSE 0.0 END), 0.0) AS tarjeta,
+            COALESCE(SUM(CASE WHEN source = 'CASH' THEN amount ELSE 0.0 END), 0.0) AS efectivo,
+            COUNT(id) AS txCount
+        FROM expenses
+        WHERE timestamp >= :startMillis
+        """
+    )
+    fun observeSummarySince(startMillis: Long): Flow<WeeklyExpenseSummary>
+
+    @Query(
+        """
+        SELECT * FROM expenses
+        WHERE timestamp >= :startMillis
+        ORDER BY timestamp DESC
+        """
+    )
+    fun observeExpensesSince(startMillis: Long): Flow<List<ExpenseEntity>>
 }

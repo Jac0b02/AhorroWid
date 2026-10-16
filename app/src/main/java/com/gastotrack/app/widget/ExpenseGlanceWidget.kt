@@ -3,26 +3,30 @@ package com.gastotrack.app.widget
 import android.content.Context
 import android.content.Intent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.glance.Button
-import androidx.glance.ButtonDefaults
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.LocalSize
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Alignment
+import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -42,27 +46,20 @@ import java.util.Locale
 
 class ExpenseGlanceWidget : GlanceAppWidget() {
 
+    override val sizeMode: SizeMode = SizeMode.Exact
+
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val db = AppDatabase.getInstance(context)
         val mondayStart = AppDatabase.getStartOfCurrentWeekMondayMillis()
         val thirtyDaysAgo = AppDatabase.getThirtyDaysAgoMillis()
 
-        val summary = withContext(Dispatchers.IO) {
+        val initialSummary = withContext(Dispatchers.IO) {
             db.expenseDao().getWeeklySummarySync(mondayStart)
         }
 
-        val topCashList = withContext(Dispatchers.IO) {
+        val initialSuggestions = withContext(Dispatchers.IO) {
             val dbSuggestions = db.expenseDao().getTopFrequentCashExpensesSync(thirtyDaysAgo)
-            if (dbSuggestions.isNotEmpty()) {
-                dbSuggestions
-            } else {
-                // Sugerencias iniciales inteligentes cuando aún no hay historial de efectivo
-                listOf(
-                    FrequentCashExpense(amount = 50.0, concept = "Café", frequency = 1, lastUsed = 0L),
-                    FrequentCashExpense(amount = 73.0, concept = "Comida", frequency = 1, lastUsed = 0L),
-                    FrequentCashExpense(amount = 100.0, concept = "Transporte", frequency = 1, lastUsed = 0L)
-                )
-            }
+            if (dbSuggestions.isNotEmpty()) dbSuggestions else defaultSuggestions
         }
 
         val quickDialogIntent = Intent(context, MainActivity::class.java).apply {
@@ -76,37 +73,267 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
 
         provideContent {
             GlanceTheme {
-                ExpenseWidgetContent(
-                    summary = summary,
-                    suggestions = topCashList,
-                    openAppIntent = openMainIntent,
-                    openQuickDialogIntent = quickDialogIntent
+                // Observación reactiva en tiempo real del Flow de Room
+                // Cada nuevo gasto insertado en la BD actualiza la UI inmediatamente
+                val summary by db.expenseDao().observeWeeklySummary(mondayStart).collectAsState(
+                    initial = initialSummary
                 )
+                val rawSuggestions by db.expenseDao().getTopFrequentCashExpenses(thirtyDaysAgo).collectAsState(
+                    initial = initialSuggestions
+                )
+                val topCashList = if (rawSuggestions.isNotEmpty()) rawSuggestions else defaultSuggestions
+
+                val size = LocalSize.current
+                val isTall = size.height >= 200.dp && size.width < 220.dp
+                val isWide = size.width >= 220.dp && size.height < 190.dp
+                val isLarge = size.width >= 220.dp && size.height >= 190.dp
+
+                when {
+                    isTall -> ExpenseWidgetTallContent(
+                        summary = summary,
+                        suggestions = topCashList,
+                        openAppIntent = openMainIntent,
+                        openQuickDialogIntent = quickDialogIntent
+                    )
+                    isWide -> ExpenseWidgetWideContent(
+                        summary = summary,
+                        suggestions = topCashList,
+                        openAppIntent = openMainIntent,
+                        openQuickDialogIntent = quickDialogIntent
+                    )
+                    isLarge -> ExpenseWidgetLargeContent(
+                        summary = summary,
+                        suggestions = topCashList,
+                        openAppIntent = openMainIntent,
+                        openQuickDialogIntent = quickDialogIntent
+                    )
+                    else -> ExpenseWidgetCompactContent(
+                        summary = summary,
+                        suggestions = topCashList,
+                        openAppIntent = openMainIntent,
+                        openQuickDialogIntent = quickDialogIntent
+                    )
+                }
             }
         }
     }
 
+    /**
+     * Diseño Vertical / Alargado (ej. 2x6, 2x5, 2x4 celdas):
+     * Muestra la tarjeta de total semanal arriba con desglose claro y la cuadrícula 2x2 abajo.
+     */
     @Composable
-    private fun ExpenseWidgetContent(
+    private fun ExpenseWidgetTallContent(
         summary: WeeklyExpenseSummary,
         suggestions: List<FrequentCashExpense>,
         openAppIntent: Intent,
         openQuickDialogIntent: Intent
     ) {
-        val currencyFormat = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
-
         Column(
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(GlanceTheme.colors.widgetBackground)
-                .cornerRadius(16.dp)
-                .padding(12.dp)
+                .cornerRadius(24.dp)
+                .padding(8.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            // Encabezado con Total Semanal Acumulado y desglose Tarjeta vs Efectivo
+            // Tarjeta de resumen superior
+            Column(
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .background(GlanceTheme.colors.surfaceVariant)
+                    .cornerRadius(18.dp)
+                    .clickable(actionStartActivity(openAppIntent))
+                    .padding(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Total Semanal",
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+                Spacer(modifier = GlanceModifier.height(1.dp))
+                Text(
+                    text = formatCurrencyClean(summary.total),
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurface,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 1
+                )
+                Spacer(modifier = GlanceModifier.height(4.dp))
+                Row(
+                    modifier = GlanceModifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = GlanceModifier.defaultWeight(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "💳 Tarjeta",
+                            style = TextStyle(
+                                color = GlanceTheme.colors.primary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                        Text(
+                            text = formatCurrencyClean(summary.tarjeta),
+                            style = TextStyle(
+                                color = GlanceTheme.colors.onSurface,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            maxLines = 1
+                        )
+                    }
+                    Column(
+                        modifier = GlanceModifier.defaultWeight(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "💵 Efectivo",
+                            style = TextStyle(
+                                color = GlanceTheme.colors.secondary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                        Text(
+                            text = formatCurrencyClean(summary.efectivo),
+                            style = TextStyle(
+                                color = GlanceTheme.colors.onSurface,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = GlanceModifier.height(6.dp))
+
+            // Cuadrícula 2x2 de accesos rápidos
+            ExpenseWidgetGrid(
+                suggestions = suggestions,
+                openQuickDialogIntent = openQuickDialogIntent,
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .defaultWeight()
+            )
+        }
+    }
+
+    /**
+     * Diseño Horizontal / Ancho (ej. 4x2, 5x2, 6x2 celdas):
+     * Lado izquierdo con resumen semanal y lado derecho con pad 2x2.
+     */
+    @Composable
+    private fun ExpenseWidgetWideContent(
+        summary: WeeklyExpenseSummary,
+        suggestions: List<FrequentCashExpense>,
+        openAppIntent: Intent,
+        openQuickDialogIntent: Intent
+    ) {
+        Row(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .background(GlanceTheme.colors.widgetBackground)
+                .cornerRadius(24.dp)
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .fillMaxHeight()
+                    .background(GlanceTheme.colors.surfaceVariant)
+                    .cornerRadius(18.dp)
+                    .clickable(actionStartActivity(openAppIntent))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Total Semanal",
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+                Text(
+                    text = formatCurrencyClean(summary.total),
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurface,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 1
+                )
+                Spacer(modifier = GlanceModifier.height(4.dp))
+                Text(
+                    text = "💳 Tarjeta: ${formatCurrencyClean(summary.tarjeta)}",
+                    style = TextStyle(
+                        color = GlanceTheme.colors.primary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 1
+                )
+                Text(
+                    text = "💵 Efectivo: ${formatCurrencyClean(summary.efectivo)}",
+                    style = TextStyle(
+                        color = GlanceTheme.colors.secondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 1
+                )
+            }
+
+            Spacer(modifier = GlanceModifier.width(6.dp))
+
+            ExpenseWidgetGrid(
+                suggestions = suggestions,
+                openQuickDialogIntent = openQuickDialogIntent,
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .fillMaxHeight()
+            )
+        }
+    }
+
+    /**
+     * Diseño Grande / Expandido (ej. 3x3, 4x3, 4x4 celdas):
+     * Cabecera superior espaciosa y cuadrícula 2x2 grande.
+     */
+    @Composable
+    private fun ExpenseWidgetLargeContent(
+        summary: WeeklyExpenseSummary,
+        suggestions: List<FrequentCashExpense>,
+        openAppIntent: Intent,
+        openQuickDialogIntent: Intent
+    ) {
+        Column(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .background(GlanceTheme.colors.widgetBackground)
+                .cornerRadius(26.dp)
+                .padding(10.dp)
+        ) {
             Row(
                 modifier = GlanceModifier
                     .fillMaxWidth()
-                    .clickable(actionStartActivity(openAppIntent)),
+                    .background(GlanceTheme.colors.surfaceVariant)
+                    .cornerRadius(20.dp)
+                    .clickable(actionStartActivity(openAppIntent))
+                    .padding(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = GlanceModifier.defaultWeight()) {
@@ -114,95 +341,267 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                         text = "Total Semanal",
                         style = TextStyle(
                             color = GlanceTheme.colors.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
                     )
                     Text(
-                        text = currencyFormat.format(summary.total),
+                        text = formatCurrencyClean(summary.total),
                         style = TextStyle(
                             color = GlanceTheme.colors.onSurface,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold
-                        )
+                        ),
+                        maxLines = 1
                     )
                 }
-
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "💳 Tarjeta: ${currencyFormat.format(summary.tarjeta)}",
+                        text = "💳 Tarjeta: ${formatCurrencyClean(summary.tarjeta)}",
                         style = TextStyle(
                             color = GlanceTheme.colors.primary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
-                        )
+                        ),
+                        maxLines = 1
                     )
                     Spacer(modifier = GlanceModifier.height(2.dp))
                     Text(
-                        text = "💵 Efectivo: ${currencyFormat.format(summary.efectivo)}",
+                        text = "💵 Efectivo: ${formatCurrencyClean(summary.efectivo)}",
                         style = TextStyle(
                             color = GlanceTheme.colors.secondary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
-                        )
+                        ),
+                        maxLines = 1
                     )
                 }
             }
 
-            Spacer(modifier = GlanceModifier.height(10.dp))
+            Spacer(modifier = GlanceModifier.height(8.dp))
 
-            Text(
-                text = "Gasto rápido en efectivo (1 toque):",
-                style = TextStyle(
-                    color = GlanceTheme.colors.onSurfaceVariant,
-                    fontSize = 11.sp
-                )
+            ExpenseWidgetGrid(
+                suggestions = suggestions,
+                openQuickDialogIntent = openQuickDialogIntent,
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .defaultWeight()
             )
+        }
+    }
+
+    /**
+     * Diseño Compacto Cuadrado (ej. 2x2 celdas):
+     * Muestra siempre el monto total actual arriba de forma sutil y los 4 cuadrados debajo.
+     */
+    @Composable
+    private fun ExpenseWidgetCompactContent(
+        summary: WeeklyExpenseSummary,
+        suggestions: List<FrequentCashExpense>,
+        openAppIntent: Intent,
+        openQuickDialogIntent: Intent
+    ) {
+        Column(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .background(GlanceTheme.colors.widgetBackground)
+                .cornerRadius(24.dp)
+                .padding(8.dp)
+        ) {
+            // Cabecera compacta con el gasto acumulado
+            Row(
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .clickable(actionStartActivity(openAppIntent))
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Total: ${formatCurrencyClean(summary.total)}",
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurface,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 1,
+                    modifier = GlanceModifier.defaultWeight()
+                )
+                Text(
+                    text = "Semana",
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+
+            Spacer(modifier = GlanceModifier.height(4.dp))
+
+            ExpenseWidgetGrid(
+                suggestions = suggestions,
+                openQuickDialogIntent = openQuickDialogIntent,
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .defaultWeight()
+            )
+        }
+    }
+
+    /**
+     * Cuadrícula simétrica 2x2:
+     * [ Gasto 1 ] [ Gasto 2 ]
+     * [ Gasto 3 ] [ + Otro  ]
+     */
+    @Composable
+    private fun ExpenseWidgetGrid(
+        suggestions: List<FrequentCashExpense>,
+        openQuickDialogIntent: Intent,
+        modifier: GlanceModifier
+    ) {
+        Column(modifier = modifier) {
+            Row(
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .defaultWeight()
+            ) {
+                QuickExpenseCard(
+                    item = suggestions.getOrNull(0),
+                    modifier = GlanceModifier.fillMaxHeight().defaultWeight()
+                )
+                Spacer(modifier = GlanceModifier.width(6.dp))
+                QuickExpenseCard(
+                    item = suggestions.getOrNull(1),
+                    modifier = GlanceModifier.fillMaxHeight().defaultWeight()
+                )
+            }
 
             Spacer(modifier = GlanceModifier.height(6.dp))
 
-            // Fila de botones rápidos de 1 solo toque + botón "+ Otro"
             Row(
-                modifier = GlanceModifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = GlanceModifier
+                    .fillMaxWidth()
+                    .defaultWeight()
             ) {
-                suggestions.take(3).forEach { suggestion ->
-                    val amountLabel = if (suggestion.amount % 1.0 == 0.0) {
-                        "+$${suggestion.amount.toInt()}"
-                    } else {
-                        "+$${String.format(Locale.US, "%.2f", suggestion.amount)}"
-                    }
-                    val shortConcept = suggestion.concept.take(8)
-
-                    Button(
-                        text = "$amountLabel $shortConcept",
-                        onClick = actionRunCallback<QuickCashActionCallback>(
-                            actionParametersOf(
-                                QuickCashActionCallback.KEY_AMOUNT to suggestion.amount,
-                                QuickCashActionCallback.KEY_CONCEPT to suggestion.concept
-                            )
-                        ),
-                        style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Medium),
-                        colors = ButtonDefaults.buttonColors(
-                            backgroundColor = GlanceTheme.colors.secondaryContainer,
-                            contentColor = GlanceTheme.colors.onSecondaryContainer
-                        ),
-                        modifier = GlanceModifier
-                            .defaultWeight()
-                            .padding(end = 4.dp)
-                    )
-                }
-
-                Button(
-                    text = "+ Otro",
-                    onClick = actionStartActivity(openQuickDialogIntent),
-                    style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold),
-                    colors = ButtonDefaults.buttonColors(
-                        backgroundColor = GlanceTheme.colors.primary,
-                        contentColor = GlanceTheme.colors.onPrimary
-                    )
+                QuickExpenseCard(
+                    item = suggestions.getOrNull(2),
+                    modifier = GlanceModifier.fillMaxHeight().defaultWeight()
+                )
+                Spacer(modifier = GlanceModifier.width(6.dp))
+                QuickAddCustomCard(
+                    openQuickDialogIntent = openQuickDialogIntent,
+                    modifier = GlanceModifier.fillMaxHeight().defaultWeight()
                 )
             }
+        }
+    }
+
+    @Composable
+    private fun QuickExpenseCard(
+        item: FrequentCashExpense?,
+        modifier: GlanceModifier
+    ) {
+        if (item == null) {
+            Box(modifier = modifier) {}
+            return
+        }
+
+        val amountLabel = if (item.amount % 1.0 == 0.0) {
+            "+$${item.amount.toInt()}"
+        } else {
+            "+$${String.format(Locale.US, "%.2f", item.amount)}"
+        }
+
+        Column(
+            modifier = modifier
+                .background(GlanceTheme.colors.secondaryContainer)
+                .cornerRadius(18.dp)
+                .clickable(
+                    actionRunCallback<QuickCashActionCallback>(
+                        actionParametersOf(
+                            QuickCashActionCallback.KEY_AMOUNT to item.amount,
+                            QuickCashActionCallback.KEY_CONCEPT to item.concept
+                        )
+                    )
+                )
+                .padding(vertical = 4.dp, horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = amountLabel,
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSecondaryContainer,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                maxLines = 1
+            )
+            Spacer(modifier = GlanceModifier.height(2.dp))
+            Text(
+                text = item.concept.take(11),
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurfaceVariant,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                maxLines = 1
+            )
+        }
+    }
+
+    @Composable
+    private fun QuickAddCustomCard(
+        openQuickDialogIntent: Intent,
+        modifier: GlanceModifier
+    ) {
+        Column(
+            modifier = modifier
+                .background(GlanceTheme.colors.primary)
+                .cornerRadius(18.dp)
+                .clickable(actionStartActivity(openQuickDialogIntent))
+                .padding(vertical = 4.dp, horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "+",
+                style = TextStyle(
+                    color = GlanceTheme.colors.onPrimary,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            )
+            Spacer(modifier = GlanceModifier.height(1.dp))
+            Text(
+                text = "Otro",
+                style = TextStyle(
+                    color = GlanceTheme.colors.onPrimary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                maxLines = 1
+            )
+        }
+    }
+
+    companion object {
+        private val defaultSuggestions = listOf(
+            FrequentCashExpense(amount = 50.0, concept = "Café", frequency = 1, lastUsed = 0L),
+            FrequentCashExpense(amount = 73.0, concept = "Comida", frequency = 1, lastUsed = 0L),
+            FrequentCashExpense(amount = 100.0, concept = "Transporte", frequency = 1, lastUsed = 0L)
+        )
+
+        fun formatCurrencyClean(amount: Double): String {
+            val format = NumberFormat.getCurrencyInstance(Locale("es", "MX"))
+            if (amount % 1.0 == 0.0) {
+                format.maximumFractionDigits = 0
+                format.minimumFractionDigits = 0
+            } else {
+                format.maximumFractionDigits = 2
+                format.minimumFractionDigits = 2
+            }
+            return format.format(amount)
         }
     }
 }

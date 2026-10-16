@@ -44,7 +44,8 @@ class QuickCashActionCallback : ActionCallback {
             // Activar feedback háptico inmediato al registrar desde el widget
             triggerHapticFeedback(context)
 
-            // Refrescar todas las instancias del widget
+            // Refrescar inmediatamente la instancia actual y propagar a las demás
+            ExpenseGlanceWidget().update(context, glanceId)
             ExpenseGlanceWidget().updateAll(context)
         } catch (e: Exception) {
             Log.e("QuickCashCallback", "Error al insertar gasto rápido desde el widget", e)

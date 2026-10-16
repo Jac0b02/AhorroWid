@@ -117,6 +117,15 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         /**
+         * Calcula el inicio del primer día del mes actual a las 00:00:00.000 en la zona horaria del dispositivo.
+         */
+        fun getStartOfCurrentMonthMillis(zoneId: ZoneId = ZoneId.systemDefault()): Long {
+            val today = LocalDate.now(zoneId)
+            val firstDay = today.with(TemporalAdjusters.firstDayOfMonth())
+            return firstDay.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        }
+
+        /**
          * Calcula el timestamp de hace 30 días respecto al momento actual.
          */
         fun getThirtyDaysAgoMillis(nowMillis: Long = System.currentTimeMillis()): Long {

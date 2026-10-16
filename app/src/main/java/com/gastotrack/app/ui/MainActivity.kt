@@ -10,7 +10,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -20,41 +25,48 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DirectionsBus
+import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocalCafe
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -68,10 +80,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.glance.appwidget.updateAll
@@ -83,6 +97,20 @@ import com.gastotrack.app.data.local.dao.FrequentCashExpense
 import com.gastotrack.app.data.local.dao.WeeklyExpenseSummary
 import com.gastotrack.app.data.local.entities.ExpenseEntity
 import com.gastotrack.app.ui.settings.SettingsScreen
+import com.gastotrack.app.data.local.BudgetPreferences
+import com.gastotrack.app.ui.dashboard.BudgetDialog
+import com.gastotrack.app.ui.dashboard.BudgetHealthCard
+import com.gastotrack.app.ui.dashboard.CurrencyUtils
+import com.gastotrack.app.ui.dashboard.DashboardPeriod
+import com.gastotrack.app.ui.dashboard.PeriodSelector
+import com.gastotrack.app.ui.dashboard.WeeklyBarChartCard
+import com.gastotrack.app.ui.theme.GastoTrackTheme
+import com.gastotrack.app.ui.theme.PixelCardShape
+import com.gastotrack.app.ui.theme.PixelChipShape
+import com.gastotrack.app.ui.theme.PixelDialogShape
+import com.gastotrack.app.ui.theme.PixelFabShape
+import com.gastotrack.app.ui.theme.PixelInputShape
+import com.gastotrack.app.ui.theme.PixelPillShape
 import com.gastotrack.app.widget.ExpenseGlanceWidget
 import com.gastotrack.app.worker.WeeklySummaryWorker
 import kotlinx.coroutines.launch
@@ -107,6 +135,7 @@ class MainActivity : ComponentActivity() {
         val database = AppDatabase.getInstance(applicationContext)
 
         setContent {
+            // Material You: Tema dinámico de Google Pixel adaptativo a fondo y modo oscuro del sistema
             GastoTrackTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -142,18 +171,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable
-fun GastoTrackTheme(
-    darkTheme: Boolean = false,
-    content: @Composable () -> Unit
-) {
-    val colorScheme = if (darkTheme) darkColorScheme() else lightColorScheme()
-    MaterialTheme(
-        colorScheme = colorScheme,
-        content = content
-    )
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GastoTrackMainApp(
@@ -175,7 +192,7 @@ fun GastoTrackMainApp(
         }
     }
 
-    // Solicitud de permiso de notificaciones push para Android 13+
+    // Solicitud de permiso de notificaciones push para Android 13+ (Pixel Notification Permission)
     val notifPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = {}
@@ -214,56 +231,118 @@ fun GastoTrackMainApp(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    var currentPeriod by rememberSaveable { mutableStateOf(DashboardPeriod.WEEK) }
+    var showBudgetDialog by rememberSaveable { mutableStateOf(false) }
+
+    val budgetPrefs = remember { BudgetPreferences(context) }
+    val weeklyBudget by budgetPrefs.weeklyBudget.collectAsState()
+    val monthlyBudget by budgetPrefs.monthlyBudget.collectAsState()
+    val activeBudgetGoal = if (currentPeriod == DashboardPeriod.WEEK) weeklyBudget else monthlyBudget
+
     val mondayStart = remember { AppDatabase.getStartOfCurrentWeekMondayMillis() }
+    val monthStart = remember { AppDatabase.getStartOfCurrentMonthMillis() }
     val thirtyDaysAgo = remember { AppDatabase.getThirtyDaysAgoMillis() }
 
-    val weeklySummary by database.expenseDao()
-        .observeWeeklySummary(mondayStart)
+    val activeStartMillis = if (currentPeriod == DashboardPeriod.WEEK) mondayStart else monthStart
+
+    val activeSummary by database.expenseDao()
+        .observeSummarySince(activeStartMillis)
         .collectAsState(
             initial = WeeklyExpenseSummary(total = 0.0, tarjeta = 0.0, efectivo = 0.0, txCount = 0)
         )
 
-    val topFrequentCash by database.expenseDao()
-        .getTopFrequentCashExpenses(thirtyDaysAgo)
+    val periodExpenses by database.expenseDao()
+        .observeExpensesSince(activeStartMillis)
         .collectAsState(initial = emptyList())
 
-    val recentExpenses by database.expenseDao()
-        .observeRecentExpenses(limit = 50)
+    val topFrequentCash by database.expenseDao()
+        .getTopFrequentCashExpenses(thirtyDaysAgo)
         .collectAsState(initial = emptyList())
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = if (selectedTab == 0) "GastoTrack" else "Reglas y Sandbox Bancario",
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = if (selectedTab == 0) "GastoTrack" else "Reglas y Sandbox Bancario",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (selectedTab == 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(PixelPillShape)
+                                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = if (currentPeriod == DashboardPeriod.WEEK) "Semanal" else "Mensual",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground
+                )
             )
         },
         floatingActionButton = {
-            if (selectedTab == 0) {
+            AnimatedVisibility(
+                visible = selectedTab == 0,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
                 ExtendedFloatingActionButton(
                     onClick = { showQuickCashDialog = true },
+                    shape = PixelFabShape,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("Gasto en Efectivo") }
+                    text = {
+                        Text(
+                            text = "Gasto en Efectivo",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 )
             }
         },
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                windowInsets = NavigationBarDefaults.windowInsets
+            ) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                    label = { Text("Resumen") }
+                    label = {
+                        Text(
+                            text = "Resumen",
+                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                    label = { Text("Bancos y Sandbox") }
+                    label = {
+                        Text(
+                            text = "Bancos y Sandbox",
+                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
                 )
             }
         }
@@ -275,9 +354,13 @@ fun GastoTrackMainApp(
                 onOpenListenerSettings = {
                     context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                 },
-                summary = weeklySummary,
+                period = currentPeriod,
+                onPeriodSelected = { currentPeriod = it },
+                summary = activeSummary,
+                budgetGoal = activeBudgetGoal,
+                onAdjustBudgetClick = { showBudgetDialog = true },
+                periodExpenses = periodExpenses,
                 frequentCashList = topFrequentCash,
-                recentExpenses = recentExpenses,
                 onQuickCashClick = { amount, concept ->
                     coroutineScope.launch {
                         database.expenseDao().insertExpense(
@@ -325,6 +408,22 @@ fun GastoTrackMainApp(
             }
         )
     }
+
+    if (showBudgetDialog) {
+        BudgetDialog(
+            period = currentPeriod,
+            currentBudget = activeBudgetGoal,
+            onDismiss = { showBudgetDialog = false },
+            onConfirmBudget = { newBudget ->
+                showBudgetDialog = false
+                if (currentPeriod == DashboardPeriod.WEEK) {
+                    budgetPrefs.setWeeklyBudget(newBudget)
+                } else {
+                    budgetPrefs.setMonthlyBudget(newBudget)
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -333,118 +432,289 @@ private fun DashboardScreenContent(
     modifier: Modifier = Modifier,
     isListenerEnabled: Boolean,
     onOpenListenerSettings: () -> Unit,
+    period: DashboardPeriod,
+    onPeriodSelected: (DashboardPeriod) -> Unit,
     summary: WeeklyExpenseSummary,
+    budgetGoal: Double,
+    onAdjustBudgetClick: () -> Unit,
+    periodExpenses: List<ExpenseEntity>,
     frequentCashList: List<FrequentCashExpense>,
-    recentExpenses: List<ExpenseEntity>,
     onQuickCashClick: (Double, String) -> Unit,
     onDeleteExpense: (ExpenseEntity) -> Unit
 ) {
-    val currency = remember { NumberFormat.getCurrencyInstance(Locale("es", "MX")) }
     val dateFormat = remember { SimpleDateFormat("dd MMM, HH:mm", Locale("es", "MX")) }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         if (!isListenerEnabled) {
             item {
                 Card(
+                    shape = PixelCardShape,
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.NotificationsActive, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(PixelPillShape)
+                                    .background(MaterialTheme.colorScheme.tertiary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.NotificationsActive,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onTertiary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = "Lectura Automática de Bancos Desactivada",
-                                style = MaterialTheme.typography.titleSmall,
+                                text = "Lectura Automática Bancaria Desactivada",
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                         Text(
-                            text = "Activa el permiso de acceso a notificaciones para que GastoTrack registre tus compras con tarjeta automáticamente.",
-                            style = MaterialTheme.typography.bodySmall
+                            text = "Activa el acceso a notificaciones para que GastoTrack registre tus compras con tarjeta automáticamente desde apps bancarias.",
+                            style = MaterialTheme.typography.bodyMedium
                         )
-                        Button(onClick = onOpenListenerSettings) {
-                            Text("Conceder Permiso")
+                        Button(
+                            onClick = onOpenListenerSettings,
+                            shape = PixelPillShape
+                        ) {
+                            Text("Conceder Permiso en Ajustes")
                         }
                     }
                 }
             }
         }
 
-        // Tarjeta Principal de Resumen Semanal
+        // Selector de Período (Esta Semana / Este Mes)
         item {
-            ElevatedCard(
+            PeriodSelector(
+                selectedPeriod = period,
+                onPeriodSelected = onPeriodSelected
+            )
+        }
+
+        // Tarjeta Principal Hero de Resumen del Período
+        item {
+            Card(
+                shape = PixelCardShape,
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (period == DashboardPeriod.WEEK) "Gasto Total de la Semana" else "Gasto Total del Mes",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.TrendingUp,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+
                     Text(
-                        text = "Balance Semanal (Desde el lunes)",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Text(
-                        text = currency.format(summary.total),
+                        text = CurrencyUtils.format(summary.total),
                         style = MaterialTheme.typography.displaySmall,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
 
-                    val cardRatio = if (summary.total > 0) {
-                        (summary.tarjeta / summary.total).toFloat().coerceIn(0f, 1f)
-                    } else 0.5f
+                    // Barra segmentada proporcional con esquinas redondeadas Pixel
+                    val total = summary.total
+                    val tarjetaRatio = if (total > 0) (summary.tarjeta / total).toFloat().coerceIn(0f, 1f) else 0.5f
+                    val efectivoRatio = 1f - tarjetaRatio
 
-                    LinearProgressIndicator(
-                        progress = { cardRatio },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(12.dp)
+                                .clip(PixelPillShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        ) {
+                            if (tarjetaRatio > 0f) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(tarjetaRatio.coerceAtLeast(0.01f))
+                                        .height(12.dp)
+                                        .background(MaterialTheme.colorScheme.primary)
+                                )
+                            }
+                            if (efectivoRatio > 0f) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(efectivoRatio.coerceAtLeast(0.01f))
+                                        .height(12.dp)
+                                        .background(MaterialTheme.colorScheme.tertiary)
+                                )
+                            }
+                        }
+                    }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Badge Tarjeta
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(PixelPillShape)
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                            )
+                            Column {
+                                Text(
+                                    text = "Tarjeta",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = CurrencyUtils.format(summary.tarjeta),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
+                        // Badge Efectivo
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(PixelPillShape)
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.6f))
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.tertiary)
+                            )
+                            Column {
+                                Text(
+                                    text = "Efectivo",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = CurrencyUtils.format(summary.efectivo),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    // Fila de conteo y promedio diario
+                    val daysDivisor = if (period == DashboardPeriod.WEEK) 7 else 30
+                    val dailyAverage = if (summary.total > 0.0) summary.total / daysDivisor else 0.0
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(PixelPillShape)
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.45f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "💳 Tarjeta: ${currency.format(summary.tarjeta)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
+                            text = "${summary.txCount} movimientos",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
-                            text = "💵 Efectivo: ${currency.format(summary.efectivo)}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold
+                            text = "Promedio: ${CurrencyUtils.format(dailyAverage)}/día",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
                 }
             }
         }
 
-        // Sugerencias frecuentes en efectivo (Últimos 30 días)
+        // Pilar 2: Presupuesto Objetivo y Semáforo de Salud
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = "Sugerencias Rápidas en Efectivo (Top 3 últimos 30 días)",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
+            BudgetHealthCard(
+                period = period,
+                spentAmount = summary.total,
+                budgetGoal = budgetGoal,
+                onAdjustBudgetClick = onAdjustBudgetClick
+            )
+        }
+
+        // Pilar 2: Gráfico Interactivo de Barras
+        item {
+            WeeklyBarChartCard(
+                period = period,
+                expenses = periodExpenses
+            )
+        }
+
+        // Sugerencias Rápidas en Efectivo
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FlashOn,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Registro Rápido de Efectivo",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
                 val chips = frequentCashList.ifEmpty {
                     listOf(
                         FrequentCashExpense(50.0, "Café", 1, 0L),
@@ -452,12 +722,40 @@ private fun DashboardScreenContent(
                         FrequentCashExpense(100.0, "Transporte", 1, 0L)
                     )
                 }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     chips.forEach { item ->
+                        val chipIcon = when {
+                            item.concept.contains("café", ignoreCase = true) -> Icons.Default.LocalCafe
+                            item.concept.contains("comida", ignoreCase = true) || item.concept.contains("almuerzo", ignoreCase = true) -> Icons.Default.Restaurant
+                            item.concept.contains("transporte", ignoreCase = true) || item.concept.contains("taxi", ignoreCase = true) -> Icons.Default.DirectionsBus
+                            else -> Icons.Default.Payments
+                        }
+
                         AssistChip(
                             onClick = { onQuickCashClick(item.amount, item.concept) },
+                            shape = PixelPillShape,
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                labelColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = chipIcon,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
                             label = {
-                                Text("+${currency.format(item.amount)} ${item.concept}")
+                                Text(
+                                    text = "+${CurrencyUtils.format(item.amount)} ${item.concept}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         )
                     }
@@ -465,31 +763,67 @@ private fun DashboardScreenContent(
             }
         }
 
+        // Movimientos del Período
         item {
-            Text(
-                text = "Movimientos Recientes (${recentExpenses.size})",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Movimientos (${period.title})",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(PixelPillShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .padding(horizontal = 10.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "${periodExpenses.size} registros",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
 
-        if (recentExpenses.isEmpty()) {
+        if (periodExpenses.isEmpty()) {
             item {
-                OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    shape = PixelCardShape,
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
-                        text = "Aún no hay gastos registrados esta semana. Usa los botones rápidos o prueba una notificación en la pestaña 'Bancos y Sandbox'.",
+                        text = if (period == DashboardPeriod.WEEK) {
+                            "Aún no hay gastos registrados esta semana. Registra un gasto en efectivo o prueba una notificación bancaria en 'Bancos y Sandbox'."
+                        } else {
+                            "Aún no hay gastos registrados este mes. Registra un gasto en efectivo o prueba una notificación bancaria en 'Bancos y Sandbox'."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(16.dp)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(20.dp)
                     )
                 }
             }
         } else {
-            items(recentExpenses, key = { it.id }) { expense ->
-                OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+            items(periodExpenses, key = { it.id }) { expense ->
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(14.dp),
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -497,21 +831,41 @@ private fun DashboardScreenContent(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Icon(
-                                imageVector = if (expense.source == ExpenseEntity.SOURCE_CARD) {
-                                    Icons.Default.CreditCard
-                                } else {
-                                    Icons.Default.Payments
-                                },
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (expense.source == ExpenseEntity.SOURCE_CARD) {
+                                            MaterialTheme.colorScheme.primaryContainer
+                                        } else {
+                                            MaterialTheme.colorScheme.tertiaryContainer
+                                        }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (expense.source == ExpenseEntity.SOURCE_CARD) {
+                                        Icons.Default.CreditCard
+                                    } else {
+                                        Icons.Default.Payments
+                                    },
+                                    contentDescription = null,
+                                    tint = if (expense.source == ExpenseEntity.SOURCE_CARD) {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onTertiaryContainer
+                                    },
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
                             Column {
                                 Text(
                                     text = expense.concept ?: expense.bankName ?: "Gasto",
                                     style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = "${expense.bankName ?: expense.source} • ${dateFormat.format(Date(expense.timestamp))}",
@@ -523,14 +877,16 @@ private fun DashboardScreenContent(
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = currency.format(expense.amount),
+                                text = CurrencyUtils.format(expense.amount),
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             IconButton(onClick = { onDeleteExpense(expense) }) {
                                 Icon(
-                                    Icons.Default.DeleteOutline,
-                                    contentDescription = "Eliminar gasto"
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = "Eliminar gasto",
+                                    tint = MaterialTheme.colorScheme.outline
                                 )
                             }
                         }
@@ -540,7 +896,7 @@ private fun DashboardScreenContent(
         }
 
         item {
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(88.dp))
         }
     }
 }
@@ -556,9 +912,17 @@ private fun QuickCashEntryDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Registrar Gasto en Efectivo") },
+        shape = PixelDialogShape,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        title = {
+            Text(
+                text = "Registrar Gasto en Efectivo",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+        },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 OutlinedTextField(
                     value = amountInput,
                     onValueChange = {
@@ -569,6 +933,7 @@ private fun QuickCashEntryDialog(
                     placeholder = { Text("Ej: 85.00") },
                     isError = amountError,
                     singleLine = true,
+                    shape = PixelInputShape,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -576,8 +941,9 @@ private fun QuickCashEntryDialog(
                     value = conceptInput,
                     onValueChange = { conceptInput = it },
                     label = { Text("Concepto (Opcional)") },
-                    placeholder = { Text("Ej: Comida, Taxi, Propina") },
+                    placeholder = { Text("Ej: Comida, Taxi, Café") },
                     singleLine = true,
+                    shape = PixelInputShape,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -591,13 +957,20 @@ private fun QuickCashEntryDialog(
                     } else {
                         onConfirmExpense(parsed, conceptInput.trim().ifEmpty { "Efectivo" })
                     }
-                }
+                },
+                shape = PixelPillShape
             ) {
-                Text("Guardar")
+                Text(
+                    text = "Guardar Gasto",
+                    fontWeight = FontWeight.Bold
+                )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = PixelPillShape
+            ) {
                 Text("Cancelar")
             }
         }
