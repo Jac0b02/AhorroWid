@@ -14,9 +14,21 @@ Todo el procesamiento ocurre **100% en el dispositivo (Local-First)**. No existe
 
 ---
 
+## 📥 Descarga Directa del APK (Instalación Rápida)
+
+¿Solo quieres instalar la app en tu teléfono sin compilar nada?
+Puedes descargar el instalador **APK** directamente desde la sección de **Releases** de este repositorio:
+
+👉 **[Descargar la Última Versión de GastoTrack (.apk)](https://github.com/Jac0b02/AhorroWid/releases/latest)**
+
+*En esa sección encontrarás el archivo `GastoTrack-v1.0.0.apk` listo para descargar y abrir directamente en tu dispositivo Android.*
+
+---
+
 ## 📑 Tabla de Contenidos
-1. [Características Principales](#-características-principales)
-2. [Novedades Recientes](#-novedades-recientes)
+1. [Descarga Directa](#-descarga-directa-del-apk-instalación-rápida)
+2. [Características Principales](#-características-principales)
+3. [Novedades Recientes](#-novedades-recientes)
 3. [Arquitectura del Sistema](#-arquitectura-del-sistema)
 4. [Estructura del Proyecto](#-estructura-del-proyecto)
 5. [Widget de Pantalla de Inicio y Bloqueo (Glance)](#-widget-de-pantalla-de-inicio-y-bloqueo-glance)
