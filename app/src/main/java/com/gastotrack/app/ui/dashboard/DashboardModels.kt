@@ -13,17 +13,29 @@ data class DailySpendData(
     val dayOfWeek: DayOfWeek,
     val shortLabel: String,
     val fullLabel: String,
-    val total: Double,
-    val count: Int,
+    val expenseTotal: Double,
+    val incomeTotal: Double = 0.0,
+    val expenseCount: Int,
+    val incomeCount: Int = 0,
     val isToday: Boolean
-)
+) {
+    val total: Double get() = expenseTotal
+    val count: Int get() = expenseCount
+    val netBalance: Double get() = incomeTotal - expenseTotal
+}
 
 data class WeeklyBucketData(
     val weekNumber: Int,
     val label: String,
-    val total: Double,
-    val count: Int
-)
+    val expenseTotal: Double,
+    val incomeTotal: Double = 0.0,
+    val expenseCount: Int,
+    val incomeCount: Int = 0
+) {
+    val total: Double get() = expenseTotal
+    val count: Int get() = expenseCount
+    val netBalance: Double get() = incomeTotal - expenseTotal
+}
 
 object CurrencyUtils {
     private val mxLocale = Locale("es", "MX")

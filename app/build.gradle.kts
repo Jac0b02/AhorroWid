@@ -88,6 +88,9 @@ dependencies {
     implementation("androidx.room:room-ktx:$roomVersion")
     ksp("androidx.room:room-compiler:$roomVersion")
 
+    // Jetpack DataStore Preferences
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
     // Jetpack Glance (AppWidgets + Material 3)
     val glanceVersion = "1.1.1"
     implementation("androidx.glance:glance-appwidget:$glanceVersion")
@@ -96,4 +99,8 @@ dependencies {
     // WorkManager + Coroutines
     implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    // Unit Testing
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
 }

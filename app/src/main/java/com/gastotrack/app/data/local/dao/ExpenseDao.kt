@@ -23,6 +23,12 @@ data class FrequentCashExpense(
     @ColumnInfo(name = "lastUsed") val lastUsed: Long
 )
 
+data class CategoryExpenseSummary(
+    @ColumnInfo(name = "category") val category: String,
+    @ColumnInfo(name = "total") val total: Double,
+    @ColumnInfo(name = "count") val count: Int
+)
+
 @Dao
 interface ExpenseDao {
 
@@ -131,4 +137,40 @@ interface ExpenseDao {
         """
     )
     fun observeExpensesSince(startMillis: Long): Flow<List<ExpenseEntity>>
+
+    @Query(
+        """
+        SELECT 
+            category,
+            COALESCE(SUM(amount), 0.0) AS total,
+            COUNT(id) AS count
+        FROM expenses
+        WHERE timestamp >= :startMillis
+        GROUP BY category
+        ORDER BY total DESC
+        """
+    )
+    fun observeCategorySummariesSince(startMillis: Long): Flow<List<CategoryExpenseSummary>>
+
+    @Query(
+        """
+        SELECT 
+            COALESCE(SUM(amount), 0.0) AS total,
+            COALESCE(SUM(CASE WHEN source = 'CARD' THEN amount ELSE 0.0 END), 0.0) AS tarjeta,
+            COALESCE(SUM(CASE WHEN source = 'CASH' THEN amount ELSE 0.0 END), 0.0) AS efectivo,
+            COUNT(id) AS txCount
+        FROM expenses
+        WHERE timestamp >= :startMillis AND timestamp <= :endMillis
+        """
+    )
+    fun observeSummaryBetween(startMillis: Long, endMillis: Long): Flow<WeeklyExpenseSummary>
+
+    @Query(
+        """
+        SELECT * FROM expenses
+        WHERE timestamp >= :startMillis AND timestamp <= :endMillis
+        ORDER BY timestamp DESC
+        """
+    )
+    fun observeExpensesBetween(startMillis: Long, endMillis: Long): Flow<List<ExpenseEntity>>
 }

@@ -1,7 +1,11 @@
 package com.gastotrack.app.widget
 
+import android.app.KeyguardManager
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -14,12 +18,14 @@ import androidx.glance.LocalSize
 import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -35,11 +41,14 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import com.gastotrack.app.GastoTrackApp
 import com.gastotrack.app.data.local.AppDatabase
 import com.gastotrack.app.data.local.dao.FrequentCashExpense
 import com.gastotrack.app.data.local.dao.WeeklyExpenseSummary
 import com.gastotrack.app.ui.MainActivity
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.NumberFormat
 import java.util.Locale
@@ -83,6 +92,8 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 )
                 val topCashList = if (rawSuggestions.isNotEmpty()) rawSuggestions else defaultSuggestions
 
+                val isLocked = isDeviceLocked(context, id)
+
                 val size = LocalSize.current
                 val isTall = size.height >= 200.dp && size.width < 220.dp
                 val isWide = size.width >= 220.dp && size.height < 190.dp
@@ -93,29 +104,57 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                         summary = summary,
                         suggestions = topCashList,
                         openAppIntent = openMainIntent,
-                        openQuickDialogIntent = quickDialogIntent
+                        openQuickDialogIntent = quickDialogIntent,
+                        isLocked = isLocked
                     )
                     isWide -> ExpenseWidgetWideContent(
                         summary = summary,
                         suggestions = topCashList,
                         openAppIntent = openMainIntent,
-                        openQuickDialogIntent = quickDialogIntent
+                        openQuickDialogIntent = quickDialogIntent,
+                        isLocked = isLocked
                     )
                     isLarge -> ExpenseWidgetLargeContent(
                         summary = summary,
                         suggestions = topCashList,
                         openAppIntent = openMainIntent,
-                        openQuickDialogIntent = quickDialogIntent
+                        openQuickDialogIntent = quickDialogIntent,
+                        isLocked = isLocked
                     )
                     else -> ExpenseWidgetCompactContent(
                         summary = summary,
                         suggestions = topCashList,
                         openAppIntent = openMainIntent,
-                        openQuickDialogIntent = quickDialogIntent
+                        openQuickDialogIntent = quickDialogIntent,
+                        isLocked = isLocked
                     )
                 }
             }
         }
+    }
+
+    private fun isDeviceLocked(context: Context, id: GlanceId? = null): Boolean {
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        val isKeyguardLocked = keyguardManager?.isKeyguardLocked == true || keyguardManager?.isDeviceLocked == true
+
+        val isKeyguardHost = if (id != null) {
+            try {
+                val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+                val options = AppWidgetManager.getInstance(context).getAppWidgetOptions(appWidgetId)
+                val category = options.getInt(AppWidgetManager.OPTION_APPWIDGET_HOST_CATEGORY, -1)
+                category == AppWidgetProviderInfo.WIDGET_CATEGORY_KEYGUARD
+            } catch (_: Exception) {
+                false
+            }
+        } else false
+
+        val isScreenOffOrLocked = try {
+            GastoTrackApp.isScreenOffOrLocked
+        } catch (_: Exception) {
+            false
+        }
+
+        return isKeyguardLocked || isKeyguardHost || isScreenOffOrLocked
     }
 
     /**
@@ -127,7 +166,8 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
         summary: WeeklyExpenseSummary,
         suggestions: List<FrequentCashExpense>,
         openAppIntent: Intent,
-        openQuickDialogIntent: Intent
+        openQuickDialogIntent: Intent,
+        isLocked: Boolean
     ) {
         Column(
             modifier = GlanceModifier
@@ -148,7 +188,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Total Semanal",
+                    text = if (isLocked) "🔒 Total Semanal" else "Total Semanal",
                     style = TextStyle(
                         color = GlanceTheme.colors.onSurfaceVariant,
                         fontSize = 11.sp,
@@ -157,7 +197,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 )
                 Spacer(modifier = GlanceModifier.height(1.dp))
                 Text(
-                    text = formatCurrencyClean(summary.total),
+                    text = if (isLocked) "$ ••••" else formatCurrencyClean(summary.total),
                     style = TextStyle(
                         color = GlanceTheme.colors.onSurface,
                         fontSize = 20.sp,
@@ -183,7 +223,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                             )
                         )
                         Text(
-                            text = formatCurrencyClean(summary.tarjeta),
+                            text = if (isLocked) "••••" else formatCurrencyClean(summary.tarjeta),
                             style = TextStyle(
                                 color = GlanceTheme.colors.onSurface,
                                 fontSize = 11.sp,
@@ -205,7 +245,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                             )
                         )
                         Text(
-                            text = formatCurrencyClean(summary.efectivo),
+                            text = if (isLocked) "••••" else formatCurrencyClean(summary.efectivo),
                             style = TextStyle(
                                 color = GlanceTheme.colors.onSurface,
                                 fontSize = 11.sp,
@@ -239,7 +279,8 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
         summary: WeeklyExpenseSummary,
         suggestions: List<FrequentCashExpense>,
         openAppIntent: Intent,
-        openQuickDialogIntent: Intent
+        openQuickDialogIntent: Intent,
+        isLocked: Boolean
     ) {
         Row(
             modifier = GlanceModifier
@@ -260,7 +301,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Total Semanal",
+                    text = if (isLocked) "🔒 Total Semanal" else "Total Semanal",
                     style = TextStyle(
                         color = GlanceTheme.colors.onSurfaceVariant,
                         fontSize = 11.sp,
@@ -268,7 +309,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                     )
                 )
                 Text(
-                    text = formatCurrencyClean(summary.total),
+                    text = if (isLocked) "$ ••••" else formatCurrencyClean(summary.total),
                     style = TextStyle(
                         color = GlanceTheme.colors.onSurface,
                         fontSize = 20.sp,
@@ -278,7 +319,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 )
                 Spacer(modifier = GlanceModifier.height(4.dp))
                 Text(
-                    text = "💳 Tarjeta: ${formatCurrencyClean(summary.tarjeta)}",
+                    text = if (isLocked) "💳 Tarjeta: ••••" else "💳 Tarjeta: ${formatCurrencyClean(summary.tarjeta)}",
                     style = TextStyle(
                         color = GlanceTheme.colors.primary,
                         fontSize = 11.sp,
@@ -287,7 +328,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                     maxLines = 1
                 )
                 Text(
-                    text = "💵 Efectivo: ${formatCurrencyClean(summary.efectivo)}",
+                    text = if (isLocked) "💵 Efectivo: ••••" else "💵 Efectivo: ${formatCurrencyClean(summary.efectivo)}",
                     style = TextStyle(
                         color = GlanceTheme.colors.secondary,
                         fontSize = 11.sp,
@@ -318,7 +359,8 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
         summary: WeeklyExpenseSummary,
         suggestions: List<FrequentCashExpense>,
         openAppIntent: Intent,
-        openQuickDialogIntent: Intent
+        openQuickDialogIntent: Intent,
+        isLocked: Boolean
     ) {
         Column(
             modifier = GlanceModifier
@@ -338,7 +380,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
             ) {
                 Column(modifier = GlanceModifier.defaultWeight()) {
                     Text(
-                        text = "Total Semanal",
+                        text = if (isLocked) "🔒 Total Semanal (Bloqueado)" else "Total Semanal",
                         style = TextStyle(
                             color = GlanceTheme.colors.onSurfaceVariant,
                             fontSize = 12.sp,
@@ -346,7 +388,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                         )
                     )
                     Text(
-                        text = formatCurrencyClean(summary.total),
+                        text = if (isLocked) "$ ••••" else formatCurrencyClean(summary.total),
                         style = TextStyle(
                             color = GlanceTheme.colors.onSurface,
                             fontSize = 22.sp,
@@ -357,7 +399,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        text = "💳 Tarjeta: ${formatCurrencyClean(summary.tarjeta)}",
+                        text = if (isLocked) "💳 Tarjeta: ••••" else "💳 Tarjeta: ${formatCurrencyClean(summary.tarjeta)}",
                         style = TextStyle(
                             color = GlanceTheme.colors.primary,
                             fontSize = 12.sp,
@@ -367,7 +409,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                     )
                     Spacer(modifier = GlanceModifier.height(2.dp))
                     Text(
-                        text = "💵 Efectivo: ${formatCurrencyClean(summary.efectivo)}",
+                        text = if (isLocked) "💵 Efectivo: ••••" else "💵 Efectivo: ${formatCurrencyClean(summary.efectivo)}",
                         style = TextStyle(
                             color = GlanceTheme.colors.secondary,
                             fontSize = 12.sp,
@@ -399,7 +441,8 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
         summary: WeeklyExpenseSummary,
         suggestions: List<FrequentCashExpense>,
         openAppIntent: Intent,
-        openQuickDialogIntent: Intent
+        openQuickDialogIntent: Intent,
+        isLocked: Boolean
     ) {
         Column(
             modifier = GlanceModifier
@@ -417,7 +460,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Total: ${formatCurrencyClean(summary.total)}",
+                    text = if (isLocked) "🔒 Total: ••••" else "Total: ${formatCurrencyClean(summary.total)}",
                     style = TextStyle(
                         color = GlanceTheme.colors.onSurface,
                         fontSize = 12.sp,
@@ -427,7 +470,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                     modifier = GlanceModifier.defaultWeight()
                 )
                 Text(
-                    text = "Semana",
+                    text = if (isLocked) "Bloqueado" else "Semana",
                     style = TextStyle(
                         color = GlanceTheme.colors.onSurfaceVariant,
                         fontSize = 10.sp,
@@ -608,4 +651,45 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
 
 class ExpenseGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = ExpenseGlanceWidget()
+
+    override fun onReceive(context: Context, intent: Intent) {
+        super.onReceive(context, intent)
+        val action = intent.action ?: return
+        if (action == Intent.ACTION_USER_PRESENT ||
+            action == Intent.ACTION_SCREEN_OFF ||
+            action == Intent.ACTION_SCREEN_ON ||
+            action == AppWidgetManager.ACTION_APPWIDGET_OPTIONS_CHANGED ||
+            action == AppWidgetManager.ACTION_APPWIDGET_UPDATE
+        ) {
+            val pendingResult = try { goAsync() } catch (_: Exception) { null }
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    glanceAppWidget.updateAll(context)
+                } catch (e: Exception) {
+                    android.util.Log.e("WidgetReceiver", "Error actualizando widget ($action): ${e.message}")
+                } finally {
+                    pendingResult?.finish()
+                }
+            }
+        }
+    }
+
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        val pendingResult = try { goAsync() } catch (_: Exception) { null }
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                glanceAppWidget.updateAll(context)
+            } catch (e: Exception) {
+                android.util.Log.e("WidgetReceiver", "Error en onAppWidgetOptionsChanged: ${e.message}")
+            } finally {
+                pendingResult?.finish()
+            }
+        }
+    }
 }

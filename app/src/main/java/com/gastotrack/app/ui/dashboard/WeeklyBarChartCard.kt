@@ -11,6 +11,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,9 +26,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.Balance
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -42,13 +43,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gastotrack.app.data.local.entities.ExpenseEntity
+import com.gastotrack.app.data.local.entities.IncomeEntity
 import com.gastotrack.app.ui.theme.PixelCardShape
 import com.gastotrack.app.ui.theme.PixelPillShape
 import java.time.DayOfWeek
@@ -62,11 +64,17 @@ import java.util.Locale
 fun WeeklyBarChartCard(
     period: DashboardPeriod,
     expenses: List<ExpenseEntity>,
+    incomes: List<IncomeEntity> = emptyList(),
     modifier: Modifier = Modifier,
     zoneId: ZoneId = ZoneId.systemDefault()
 ) {
     val haptic = LocalHapticFeedback.current
     val today = remember { LocalDate.now(zoneId) }
+    val isDark = isSystemInDarkTheme()
+
+    // Paleta semántica accesible: Verde esmeralda (Ingreso) y Rojo coral (Gasto)
+    val incomeColor = if (isDark) Color(0xFF34D399) else Color(0xFF059669)
+    val expenseColor = if (isDark) Color(0xFFF87171) else Color(0xFFDC2626)
 
     AnimatedContent(
         targetState = period,
@@ -74,10 +82,14 @@ fun WeeklyBarChartCard(
         label = "chart_period_transition"
     ) { currentPeriod ->
         if (currentPeriod == DashboardPeriod.WEEK) {
-            // Desglose de los 7 días de la semana: Lun a Dom
-            val dailyData = remember(expenses, today) {
-                val dayTotals = expenses.groupBy { expense ->
+            // Desglose de los 7 días de la semana: Lun a Dom con Barras Dobles (Ingreso vs Gasto)
+            val dailyData = remember(expenses, incomes, today) {
+                val dayExpenses = expenses.groupBy { expense ->
                     val date = LocalDate.ofInstant(Instant.ofEpochMilli(expense.timestamp), zoneId)
+                    date.dayOfWeek
+                }
+                val dayIncomes = incomes.groupBy { income ->
+                    val date = LocalDate.ofInstant(Instant.ofEpochMilli(income.timestamp), zoneId)
                     date.dayOfWeek
                 }
 
@@ -92,25 +104,23 @@ fun WeeklyBarChartCard(
                 )
 
                 daysOrder.map { (dayOfWeek, labels) ->
-                    val matching = dayTotals[dayOfWeek].orEmpty()
-                    val total = matching.sumOf { it.amount }
+                    val matchingExp = dayExpenses[dayOfWeek].orEmpty()
+                    val matchingInc = dayIncomes[dayOfWeek].orEmpty()
                     DailySpendData(
                         dayOfWeek = dayOfWeek,
                         shortLabel = labels.first,
                         fullLabel = labels.second,
-                        total = total,
-                        count = matching.size,
+                        expenseTotal = matchingExp.sumOf { it.amount },
+                        incomeTotal = matchingInc.sumOf { it.amount },
+                        expenseCount = matchingExp.size,
+                        incomeCount = matchingInc.size,
                         isToday = dayOfWeek == today.dayOfWeek
                     )
                 }
             }
 
-            val maxTotal = remember(dailyData) {
-                dailyData.maxOfOrNull { it.total }?.takeIf { it > 0.0 } ?: 1.0
-            }
-
-            val peakDay = remember(dailyData) {
-                dailyData.filter { it.total > 0.0 }.maxByOrNull { it.total }
+            val maxVal = remember(dailyData) {
+                dailyData.maxOfOrNull { maxOf(it.expenseTotal, it.incomeTotal) }?.takeIf { it > 0.0 } ?: 1.0
             }
 
             var selectedIndex by remember(currentPeriod) {
@@ -134,7 +144,7 @@ fun WeeklyBarChartCard(
                         .padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Encabezado
+                    // Encabezado y Leyenda
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -160,35 +170,59 @@ fun WeeklyBarChartCard(
                             }
                             Column {
                                 Text(
-                                    text = "Gastos por Día",
+                                    text = "Comparativa Diaria",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Semana en curso (Lun a Dom)",
+                                    text = "Ingresos vs Gastos",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
 
-                        // Badge del día seleccionado
-                        Box(
-                            modifier = Modifier
-                                .clip(PixelPillShape)
-                                .background(MaterialTheme.colorScheme.primaryContainer)
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        // Leyenda elegante
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(
-                                text = "${selectedItem.shortLabel}: ${CurrencyUtils.format(selectedItem.total)}",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(incomeColor)
+                                )
+                                Text(
+                                    text = "Ingreso",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(expenseColor)
+                                )
+                                Text(
+                                    text = "Gasto",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
 
-                    // Gráfico de 7 columnas
+                    // Columnas de días con Barras Dobles lado a lado
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -198,77 +232,110 @@ fun WeeklyBarChartCard(
                     ) {
                         dailyData.forEachIndexed { index, item ->
                             val isSelected = index == selectedIndex
-                            val rawRatio = (item.total / maxTotal).toFloat()
-                            val fillRatio = if (item.total > 0.0) {
-                                (0.12f + rawRatio * 0.88f).coerceIn(0.12f, 1f)
-                            } else {
-                                0.05f // Slot mínimo sutil cuando es 0
-                            }
 
-                            val animatedRatio by animateFloatAsState(
-                                targetValue = fillRatio,
+                            // Ratios normalizados
+                            val expRatio = if (item.expenseTotal > 0.0) {
+                                (0.12f + (item.expenseTotal / maxVal).toFloat() * 0.88f).coerceIn(0.12f, 1f)
+                            } else 0.04f
+
+                            val incRatio = if (item.incomeTotal > 0.0) {
+                                (0.12f + (item.incomeTotal / maxVal).toFloat() * 0.88f).coerceIn(0.12f, 1f)
+                            } else 0.04f
+
+                            val animatedExpRatio by animateFloatAsState(
+                                targetValue = expRatio,
                                 animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
-                                label = "bar_ratio_$index"
+                                label = "bar_exp_$index"
                             )
 
-                            val barColor by animateColorAsState(
-                                targetValue = when {
-                                    isSelected -> MaterialTheme.colorScheme.primary
-                                    item.isToday -> MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
-                                    item.total > 0.0 -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f)
-                                    else -> MaterialTheme.colorScheme.surfaceContainerHighest
-                                },
-                                animationSpec = tween(durationMillis = 250),
-                                label = "bar_color_$index"
+                            val animatedIncRatio by animateFloatAsState(
+                                targetValue = incRatio,
+                                animationSpec = tween(durationMillis = 500, easing = FastOutSlowInEasing),
+                                label = "bar_inc_$index"
                             )
 
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxHeight()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        if (isSelected) MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f)
+                                        else Color.Transparent
+                                    )
                                     .clickable(
                                         interactionSource = remember { MutableInteractionSource() },
-                                        indication = ripple(bounded = false, radius = 24.dp)
+                                        indication = ripple(bounded = true, radius = 24.dp)
                                     ) {
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         selectedIndex = index
-                                    },
+                                    }
+                                    .padding(vertical = 4.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Bottom
                             ) {
-                                // Monto compacto superior si tiene gasto
-                                if (item.total > 0.0) {
+                                // Balance neto compacto arriba si hay movimientos
+                                if (item.expenseTotal > 0.0 || item.incomeTotal > 0.0) {
+                                    val net = item.netBalance
+                                    val prefix = if (net > 0) "+" else ""
                                     Text(
-                                        text = CurrencyUtils.formatCompact(item.total),
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                        text = "$prefix${CurrencyUtils.formatCompact(net)}",
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (net >= 0) incomeColor else expenseColor,
                                         maxLines = 1
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                 } else {
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(14.dp))
                                 }
 
-                                // Barra vertical
-                                Box(
+                                // Contenedor de barras dobles (Lado a Lado)
+                                Row(
                                     modifier = Modifier
                                         .width(22.dp)
-                                        .height(96.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                                    contentAlignment = Alignment.BottomCenter
+                                        .height(84.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Bottom
                                 ) {
+                                    // Barra 1: Ingreso (Verde)
                                     Box(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .fillMaxHeight(animatedRatio)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(barColor)
-                                    )
+                                            .width(9.dp)
+                                            .fillMaxHeight()
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                                        contentAlignment = Alignment.BottomCenter
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .fillMaxHeight(animatedIncRatio)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (item.incomeTotal > 0.0) incomeColor else Color.Transparent)
+                                        )
+                                    }
+
+                                    // Barra 2: Gasto (Rojo)
+                                    Box(
+                                        modifier = Modifier
+                                            .width(9.dp)
+                                            .fillMaxHeight()
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                                        contentAlignment = Alignment.BottomCenter
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .fillMaxHeight(animatedExpRatio)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(if (item.expenseTotal > 0.0) expenseColor else Color.Transparent)
+                                        )
+                                    }
                                 }
 
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
 
                                 // Etiqueta del día
                                 Text(
@@ -300,69 +367,76 @@ fun WeeklyBarChartCard(
                         }
                     }
 
-                    // Detalle inferior: Día pico y conteo
+                    // Detalle del día seleccionado: Ingresos, Gastos y Balance Neto
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(PixelPillShape)
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                             .padding(horizontal = 14.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Text(
+                            text = "${selectedItem.fullLabel}:",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.LocalFireDepartment,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.tertiary,
-                                modifier = Modifier.size(16.dp)
-                            )
                             Text(
-                                text = if (peakDay != null) {
-                                    "Pico: ${peakDay.fullLabel} (${CurrencyUtils.format(peakDay.total)})"
-                                } else {
-                                    "Sin gastos registrados aún"
-                                },
+                                text = "🟢 +${CurrencyUtils.format(selectedItem.incomeTotal)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = incomeColor
+                            )
+                            Text(
+                                text = "🔴 -${CurrencyUtils.format(selectedItem.expenseTotal)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = expenseColor
                             )
                         }
-
-                        Text(
-                            text = "${selectedItem.count} ${if (selectedItem.count == 1) "compra" else "compras"}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                     }
                 }
             }
         } else {
-            // Desglose Mensual por Semanas
-            val weekBuckets = remember(expenses) {
+            // Desglose Mensual por Semanas con Barras Dobles
+            val weekBuckets = remember(expenses, incomes) {
                 val weekFields = WeekFields.of(Locale.getDefault())
-                val grouped = expenses.groupBy { expense ->
+                val groupedExp = expenses.groupBy { expense ->
                     val date = LocalDate.ofInstant(Instant.ofEpochMilli(expense.timestamp), zoneId)
                     date.get(weekFields.weekOfMonth())
                 }
+                val groupedInc = incomes.groupBy { income ->
+                    val date = LocalDate.ofInstant(Instant.ofEpochMilli(income.timestamp), zoneId)
+                    date.get(weekFields.weekOfMonth())
+                }
 
-                (1..4).map { weekIndex ->
-                    val itemsInWeek = grouped[weekIndex].orEmpty()
+                (1..5).map { weekIndex ->
+                    val expInWeek = groupedExp[weekIndex].orEmpty()
+                    val incInWeek = groupedInc[weekIndex].orEmpty()
                     WeeklyBucketData(
                         weekNumber = weekIndex,
-                        label = "Semana $weekIndex",
-                        total = itemsInWeek.sumOf { it.amount },
-                        count = itemsInWeek.size
+                        label = "Sem $weekIndex",
+                        expenseTotal = expInWeek.sumOf { it.amount },
+                        incomeTotal = incInWeek.sumOf { it.amount },
+                        expenseCount = expInWeek.size,
+                        incomeCount = incInWeek.size
                     )
-                }
+                }.filter { it.expenseTotal > 0.0 || it.incomeTotal > 0.0 || it.weekNumber <= 4 }
             }
 
-            val maxWeekTotal = remember(weekBuckets) {
-                weekBuckets.maxOfOrNull { it.total }?.takeIf { it > 0.0 } ?: 1.0
+            val maxWeekVal = remember(weekBuckets) {
+                weekBuckets.maxOfOrNull { maxOf(it.expenseTotal, it.incomeTotal) }?.takeIf { it > 0.0 } ?: 1.0
             }
+
+            var selectedWeekIndex by remember(currentPeriod) { mutableIntStateOf(0) }
+            val selectedBucket = weekBuckets.getOrNull(selectedWeekIndex) ?: weekBuckets.first()
 
             Card(
                 shape = PixelCardShape,
@@ -395,7 +469,7 @@ fun WeeklyBarChartCard(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.TrendingUp,
+                                    imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                     modifier = Modifier.size(20.dp)
@@ -403,20 +477,41 @@ fun WeeklyBarChartCard(
                             }
                             Column {
                                 Text(
-                                    text = "Progreso del Mes",
+                                    text = "Evolución del Mes",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "Evolución semana a semana",
+                                    text = "Comparativa semana a semana",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
+
+                        // Leyenda
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(incomeColor))
+                                Text("Ingreso", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(expenseColor))
+                                Text("Gasto", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
                     }
 
-                    // Columnas de semanas
+                    // Columnas de semanas con barras dobles
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -425,55 +520,57 @@ fun WeeklyBarChartCard(
                         verticalAlignment = Alignment.Bottom
                     ) {
                         weekBuckets.forEachIndexed { index, bucket ->
-                            val rawRatio = (bucket.total / maxWeekTotal).toFloat()
-                            val fillRatio = if (bucket.total > 0.0) {
-                                (0.12f + rawRatio * 0.88f).coerceIn(0.12f, 1f)
-                            } else {
-                                0.05f
-                            }
+                            val isSelected = index == selectedWeekIndex
 
-                            val animatedRatio by animateFloatAsState(
-                                targetValue = fillRatio,
-                                animationSpec = tween(durationMillis = 500),
-                                label = "week_ratio_$index"
-                            )
+                            val expRatio = if (bucket.expenseTotal > 0.0) {
+                                (0.12f + (bucket.expenseTotal / maxWeekVal).toFloat() * 0.88f).coerceIn(0.12f, 1f)
+                            } else 0.04f
+
+                            val incRatio = if (bucket.incomeTotal > 0.0) {
+                                (0.12f + (bucket.incomeTotal / maxWeekVal).toFloat() * 0.88f).coerceIn(0.12f, 1f)
+                            } else 0.04f
+
+                            val animatedExpRatio by animateFloatAsState(targetValue = expRatio, animationSpec = tween(500), label = "w_exp_$index")
+                            val animatedIncRatio by animateFloatAsState(targetValue = incRatio, animationSpec = tween(500), label = "w_inc_$index")
 
                             Column(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .fillMaxHeight(),
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.7f) else Color.Transparent)
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        selectedWeekIndex = index
+                                    }
+                                    .padding(vertical = 4.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Bottom
                             ) {
-                                if (bucket.total > 0.0) {
-                                    Text(
-                                        text = CurrencyUtils.formatCompact(bucket.total),
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                } else {
-                                    Spacer(modifier = Modifier.height(16.dp))
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .width(36.dp)
-                                        .height(84.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                                    contentAlignment = Alignment.BottomCenter
+                                Row(
+                                    modifier = Modifier.width(26.dp).height(80.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Bottom
                                 ) {
+                                    // Ingreso semanal
                                     Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .fillMaxHeight(animatedRatio)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(
-                                                if (bucket.total > 0.0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest
-                                            )
-                                    )
+                                        modifier = Modifier.width(11.dp).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                                        contentAlignment = Alignment.BottomCenter
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth().fillMaxHeight(animatedIncRatio).clip(RoundedCornerShape(4.dp)).background(if (bucket.incomeTotal > 0.0) incomeColor else Color.Transparent)
+                                        )
+                                    }
+
+                                    // Gasto semanal
+                                    Box(
+                                        modifier = Modifier.width(11.dp).fillMaxHeight().clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                                        contentAlignment = Alignment.BottomCenter
+                                    ) {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth().fillMaxHeight(animatedExpRatio).clip(RoundedCornerShape(4.dp)).background(if (bucket.expenseTotal > 0.0) expenseColor else Color.Transparent)
+                                        )
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -481,10 +578,43 @@ fun WeeklyBarChartCard(
                                 Text(
                                     text = bucket.label,
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                        }
+                    }
+
+                    // Detalle de la semana seleccionada
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(PixelPillShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${selectedBucket.label}:",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                text = "🟢 +${CurrencyUtils.format(selectedBucket.incomeTotal)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = incomeColor
+                            )
+                            Text(
+                                text = "🔴 -${CurrencyUtils.format(selectedBucket.expenseTotal)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = expenseColor
+                            )
                         }
                     }
                 }

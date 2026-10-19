@@ -29,7 +29,10 @@ data class BankRuleEntity(
     val merchantRegex: String? = DEFAULT_MERCHANT_REGEX,
 
     @ColumnInfo(name = "isEnabled")
-    val isEnabled: Boolean = true
+    val isEnabled: Boolean = true,
+
+    @ColumnInfo(name = "priority", defaultValue = "0")
+    val priority: Int = 0
 ) {
     companion object {
         const val DEFAULT_AMOUNT_REGEX = """(?:\$|MXN\s*)([\d,]+\.?\d{0,2})"""

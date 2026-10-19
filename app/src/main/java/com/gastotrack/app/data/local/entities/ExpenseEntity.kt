@@ -9,7 +9,8 @@ import androidx.room.PrimaryKey
     tableName = "expenses",
     indices = [
         Index(value = ["timestamp"]),
-        Index(value = ["source", "timestamp"])
+        Index(value = ["source", "timestamp"]),
+        Index(value = ["category"])
     ]
 )
 data class ExpenseEntity(
@@ -30,10 +31,17 @@ data class ExpenseEntity(
     val bankName: String? = null,
 
     @ColumnInfo(name = "timestamp")
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+
+    @ColumnInfo(name = "category", defaultValue = "'General'")
+    val category: String = DEFAULT_CATEGORY,
+
+    @ColumnInfo(name = "notes", defaultValue = "NULL")
+    val notes: String? = null
 ) {
     companion object {
         const val SOURCE_CARD = "CARD"
         const val SOURCE_CASH = "CASH"
+        const val DEFAULT_CATEGORY = "General"
     }
 }

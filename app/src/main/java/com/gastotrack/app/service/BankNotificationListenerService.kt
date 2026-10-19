@@ -1,6 +1,10 @@
 package com.gastotrack.app.service
 
 import android.app.Notification
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -211,6 +215,32 @@ class BankNotificationListenerService : NotificationListenerService() {
     // Caché en memoria para deduplicación rápida dentro de la ventana de 10 segundos
     private val recentProcessedFingerprints = ConcurrentHashMap<String, Long>()
 
+    // Receptor dinámico para actualizar inmediatamente el widget al bloquear o desbloquear la pantalla
+    private val screenLockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val action = intent?.action ?: return
+            if (action == Intent.ACTION_SCREEN_OFF || action == Intent.ACTION_SCREEN_ON || action == Intent.ACTION_USER_PRESENT) {
+                serviceScope.launch {
+                    try {
+                        context?.let { ExpenseGlanceWidget().updateAll(it) }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error actualizando widget ante evento $action", e)
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+        registerReceiver(screenLockReceiver, filter)
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
         val notification = sbn?.notification ?: return
@@ -334,6 +364,11 @@ class BankNotificationListenerService : NotificationListenerService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        try {
+            unregisterReceiver(screenLockReceiver)
+        } catch (e: Exception) {
+            Log.w(TAG, "screenLockReceiver ya no estaba registrado al destruir servicio: ${e.message}")
+        }
         serviceScope.cancel()
     }
 

@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
+        android:name=".GastoTrackApp"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="GastoTrack"
@@ -46,6 +47,8 @@
             android:label="GastoTrack Resumen y Efectivo Rápido">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.appwidget.action.APPWIDGET_OPTIONS_CHANGED" />
+                <action android:name="android.intent.action.USER_PRESENT" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
