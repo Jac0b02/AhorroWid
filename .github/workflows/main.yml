@@ -33,21 +33,23 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace
           mkdir -p release-artifacts
-          cp app/build/outputs/apk/debug/app-debug.apk release-artifacts/GastoTrack-v1.0.0.apk
+          TAG_NAME="${GITHUB_REF_NAME:-v1.1.0}"
+          cp app/build/outputs/apk/debug/app-debug.apk "release-artifacts/GastoTrack-${TAG_NAME}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk release-artifacts/GastoTrack-latest.apk
 
       - name: Subir artefacto interno
         uses: actions/upload-artifact@v4
         with:
           name: GastoTrack-debug-apk
-          path: release-artifacts/GastoTrack-v1.0.0.apk
+          path: release-artifacts/*.apk
 
       - name: Publicar en GitHub Releases
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: release-artifacts/GastoTrack-v1.0.0.apk
-          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'GastoTrack v1.0.0' }}
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.0.0' }}
+          files: release-artifacts/*.apk
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'GastoTrack v1.1.0' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v1.1.0' }}
           draft: false
           prerelease: false
           generate_release_notes: true

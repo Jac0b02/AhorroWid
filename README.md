@@ -1,5 +1,11 @@
+<div align="center">
+
+![GastoTrack Hero Banner](assets/banner.jpg)
+
 # 💰 GastoTrack — Control Financiero Inteligente, Privado y Automatizado
 
+[![Latest Release](https://img.shields.io/github/v/release/Jac0b02/AhorroWid?color=3DDC84&logo=github&label=Última%20Versión)](https://github.com/Jac0b02/AhorroWid/releases/latest)
+[![CI Build](https://img.shields.io/github/actions/workflow/status/Jac0b02/AhorroWid/main.yml?branch=main&logo=githubactions&logoColor=white&label=Build%20APK)](https://github.com/Jac0b02/AhorroWid/actions)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Android](https://img.shields.io/badge/Android-8.0%2B%20(API%2026%2B)-3DDC84.svg?logo=android&logoColor=white)](https://developer.android.com)
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-BOM%202024.10.01-4285F4.svg?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
@@ -8,7 +14,15 @@
 [![Glance Widgets](https://img.shields.io/badge/Jetpack%20Glance-v1.1.1-00ACC1.svg)](https://developer.android.com/jetpack/compose/glance)
 [![License](https://img.shields.io/badge/License-MIT-black.svg)](LICENSE)
 
-**GastoTrack** (AhorroWid) es una aplicación nativa para Android desarrollada con **Jetpack Compose** y los principios de diseño de **Google Pixel (Material You / Material 3)**. Su propósito es brindar un control financiero personal ágil, intuitivo y con fricción cero: captura pasiva y automática de gastos con tarjeta desde notificaciones bancarias, registro en 1 toque para efectivo y balance de ingresos versus gastos, todo bajo una estricta política de **privacidad absoluta**.
+<br/>
+
+**Control financiero personal, balance de ingresos, detección automática de compras con tarjeta y widgets adaptativos sin sacrificar tu privacidad.**
+
+[📱 Descargar APK Directo](#-descarga-directa-del-apk) • [✨ Características](#-características-principales) • [🎨 Diseño Material 3](#-experiencia-de-usuario-y-diseño-material-3) • [📊 Widgets Glance](#-widget-de-pantalla-de-inicio-adaptativo-jetpack-glance)
+
+</div>
+
+---
 
 > 🔒 **Filosofía 100% Local-First**: Todo el procesamiento, análisis y almacenamiento ocurre de forma exclusiva en la base de datos SQLite de tu dispositivo. **Sin servidores externos, sin suscripciones ocultas, sin recolección de datos ni telemetría.**
 
@@ -16,10 +30,22 @@
 
 ## 📥 Descarga Directa del APK
 
-¿Quieres probar la app en tu teléfono sin necesidad de compilar el código?  
-Puedes descargar el instalador oficial compilado directamente desde la sección de lanzamientos:
+| Archivo | Versión | Estado | Enlace Directo |
+|---|---|---|---|
+| 📦 **GastoTrack-v1.1.0.apk** | **v1.1.0 (Build 2)** | ✅ Estable / Recomendada | [**Descargar v1.1.0 (.apk)**](https://github.com/Jac0b02/AhorroWid/releases/download/v1.1.0/GastoTrack-v1.1.0.apk) |
+| 🚀 **GastoTrack-latest.apk** | **Última Compilación** | 🔄 Automática CI/CD | [**Descargar Última Versión**](https://github.com/Jac0b02/AhorroWid/releases/latest/download/GastoTrack-latest.apk) |
 
-👉 **[Descargar la Última Versión de GastoTrack (.apk)](https://github.com/Jac0b02/AhorroWid/releases/latest)**
+> 💡 **Nota de instalación**: Al ser un APK directo de GitHub, tu teléfono Android podría pedirte confirmación para *"Instalar aplicaciones de fuentes desconocidas"*. Es 100% seguro y de código abierto.
+
+### 💡 ¿Por qué elegir GastoTrack frente a otras apps?
+
+| Característica | 💰 GastoTrack | 🏦 Otras Apps Financieras |
+|---|---|---|
+| **Privacidad** | 🔒 **100% Local (SQLite)** — Jamás sale de tu móvil | ☁️ Envían tus datos a servidores externos |
+| **Detección Bancaria** | ⚡ **Pasiva desde Notificaciones** — Sin credenciales bancarias | 🔑 Te piden usuario y contraseña de tu banco |
+| **Registro de Efectivo** | ⏱️ **1 Toque** desde Widgets adaptativos en tu pantalla de inicio | 🐢 Formularios lentos y menús escondidos |
+| **Costo y Publicidad** | 🆓 **100% Gratis, Código Abierto y Cero Anuncios** | 💳 Suscripciones mensuales caras ($5 - $10 USD/mes) |
+| **Diseño y Ergonomía** | 🎨 **Google Pixel / Material 3**, BottomSheets y háptica | 📱 Diseños genéricos desactualizados |
 
 ---
 
