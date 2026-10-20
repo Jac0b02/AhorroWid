@@ -1,7 +1,5 @@
 <div align="center">
 
-![GastoTrack Hero Banner](assets/banner.jpg)
-
 # 💰 GastoTrack — Control Financiero Inteligente, Privado y Automatizado
 
 [![Latest Release](https://img.shields.io/github/v/release/Jac0b02/AhorroWid?color=3DDC84&logo=github&label=Última%20Versión)](https://github.com/Jac0b02/AhorroWid/releases/latest)

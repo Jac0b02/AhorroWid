@@ -1,0 +1,17 @@
+# Configuración de saltos de línea para Git y CI/CD
+* text=auto
+
+# Scripts ejecutables en Linux / CI
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Scripts Windows
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Archivos binarios
+*.jar binary
+*.apk binary
+*.png binary
+*.jpg binary
+*.webp binary

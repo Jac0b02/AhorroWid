@@ -22,16 +22,16 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
 
-      - name: Configurar Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - name: Dar permisos y normalizar gradlew
+        run: |
+          dos2unix gradlew 2>/dev/null || sed -i 's/\r$//' gradlew
+          chmod +x gradlew
 
       - name: Compilar APK Debug
         run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --no-daemon --stacktrace
           mkdir -p release-artifacts
           TAG_NAME="${GITHUB_REF_NAME:-v1.1.0}"
           cp app/build/outputs/apk/debug/app-debug.apk "release-artifacts/GastoTrack-${TAG_NAME}.apk"
@@ -46,6 +46,8 @@ jobs:
       - name: Publicar en GitHub Releases
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           files: release-artifacts/*.apk
           name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'GastoTrack v1.1.0' }}
