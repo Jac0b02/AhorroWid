@@ -38,10 +38,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gastotrack.app.ui.theme.PixelCardShape
 import com.gastotrack.app.ui.theme.PixelPillShape
+import com.gastotrack.app.ui.theme.financialColors
 
 @Composable
 fun BalanceComparisonCard(
@@ -53,18 +55,18 @@ fun BalanceComparisonCard(
     onAddIncomeClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
     val netBalance = incomeTotal - expenseTotal
     val isPositive = netBalance >= 0.0
 
-    // Colores semánticos para ingresos/ganancias y gastos/pérdidas
-    val incomeColor = if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32)
-    val incomeContainerColor = if (isDark) Color(0xFF1E3924) else Color(0xFFE8F5E9)
-    val incomeOnContainerColor = if (isDark) Color(0xFFC8E6C9) else Color(0xFF1B5E20)
+    // Colores semánticos centralizados desde MaterialTheme
+    val finColors = MaterialTheme.financialColors
+    val incomeColor = finColors.income
+    val incomeContainerColor = finColors.incomeContainer
+    val incomeOnContainerColor = finColors.onIncomeContainer
 
-    val expenseColor = if (isDark) Color(0xFFFF8A80) else Color(0xFFC62828)
-    val expenseContainerColor = if (isDark) Color(0xFF3E1C1A) else Color(0xFFFFEBEE)
-    val expenseOnContainerColor = if (isDark) Color(0xFFFFCDD2) else Color(0xFFB71C1C)
+    val expenseColor = finColors.expense
+    val expenseContainerColor = finColors.expenseContainer
+    val expenseOnContainerColor = finColors.onExpenseContainer
 
     // Proporción de gasto sobre el total ganado
     val ratioSpent = if (incomeTotal > 0.0) {
@@ -86,6 +88,11 @@ fun BalanceComparisonCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        border = CardDefaults.outlinedCardBorder().copy(
+            brush = SolidColor(
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+            )
         ),
         modifier = modifier.fillMaxWidth()
     ) {
@@ -307,7 +314,7 @@ fun BalanceComparisonCard(
                                 .fillMaxWidth(animatedSpentProgress)
                                 .height(10.dp)
                                 .clip(PixelPillShape)
-                                .background(if (expenseTotal > incomeTotal) expenseColor else Color(0xFFFFB74D))
+                                .background(if (expenseTotal > incomeTotal) expenseColor else finColors.warning)
                         )
                     }
 

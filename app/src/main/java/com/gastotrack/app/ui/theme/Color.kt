@@ -73,3 +73,36 @@ val PixelDarkSurfaceContainerLow = Color(0xFF191C1E)
 val PixelDarkSurfaceContainer = Color(0xFF1D2023)
 val PixelDarkSurfaceContainerHigh = Color(0xFF282A2D)
 val PixelDarkSurfaceContainerHighest = Color(0xFF323538)
+
+// --- Financial Semantic Tokens (Ingresos, Gastos, Presupuesto Semafórico) ---
+// Modo Claro (Light Mode) - Contraste accesible >= 4.5:1
+val FinancialLightIncome = Color(0xFF0F834D)        // Verde Esmeralda Accesible
+val FinancialLightOnIncome = Color(0xFFFFFFFF)
+val FinancialLightIncomeContainer = Color(0xFFD7F5DE)
+val FinancialLightOnIncomeContainer = Color(0xFF04391E)
+
+val FinancialLightExpense = Color(0xFFBA1A1A)       // Rojo Carmesí / Material Red
+val FinancialLightOnExpense = Color(0xFFFFFFFF)
+val FinancialLightExpenseContainer = Color(0xFFFFDAD6)
+val FinancialLightOnExpenseContainer = Color(0xFF410002)
+
+val FinancialLightWarning = Color(0xFFC05621)       // Ámbar preventivo
+val FinancialLightOnWarning = Color(0xFFFFFFFF)
+val FinancialLightWarningContainer = Color(0xFFFFE0B2)
+val FinancialLightOnWarningContainer = Color(0xFF4E2600)
+
+// Modo Oscuro (Dark Mode) - Tonos pasteles luminosos para contraste OLED
+val FinancialDarkIncome = Color(0xFF6DD58C)         // Menta / Esmeralda luminoso
+val FinancialDarkOnIncome = Color(0xFF00391A)
+val FinancialDarkIncomeContainer = Color(0xFF134E2C)
+val FinancialDarkOnIncomeContainer = Color(0xFFAAF2C0)
+
+val FinancialDarkExpense = Color(0xFFFF8A80)        // Coral suave
+val FinancialDarkOnExpense = Color(0xFF601410)
+val FinancialDarkExpenseContainer = Color(0xFF4A1A18)
+val FinancialDarkOnExpenseContainer = Color(0xFFFFDAD6)
+
+val FinancialDarkWarning = Color(0xFFFFB74D)        // Ámbar luminoso
+val FinancialDarkOnWarning = Color(0xFF472A00)
+val FinancialDarkWarningContainer = Color(0xFF5D3900)
+val FinancialDarkOnWarningContainer = Color(0xFFFFE082)

@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -53,6 +54,7 @@ import com.gastotrack.app.data.local.entities.ExpenseEntity
 import com.gastotrack.app.data.local.entities.IncomeEntity
 import com.gastotrack.app.ui.theme.PixelCardShape
 import com.gastotrack.app.ui.theme.PixelPillShape
+import com.gastotrack.app.ui.theme.financialColors
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -70,11 +72,11 @@ fun WeeklyBarChartCard(
 ) {
     val haptic = LocalHapticFeedback.current
     val today = remember { LocalDate.now(zoneId) }
-    val isDark = isSystemInDarkTheme()
 
-    // Paleta semántica accesible: Verde esmeralda (Ingreso) y Rojo coral (Gasto)
-    val incomeColor = if (isDark) Color(0xFF34D399) else Color(0xFF059669)
-    val expenseColor = if (isDark) Color(0xFFF87171) else Color(0xFFDC2626)
+    // Paleta semántica accesible y centralizada desde MaterialTheme
+    val finColors = MaterialTheme.financialColors
+    val incomeColor = finColors.income
+    val expenseColor = finColors.expense
 
     AnimatedContent(
         targetState = period,
@@ -135,6 +137,11 @@ fun WeeklyBarChartCard(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
                     contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                border = CardDefaults.outlinedCardBorder().copy(
+                    brush = SolidColor(
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    )
                 ),
                 modifier = modifier.fillMaxWidth()
             ) {
@@ -443,6 +450,11 @@ fun WeeklyBarChartCard(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
                     contentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                border = CardDefaults.outlinedCardBorder().copy(
+                    brush = SolidColor(
+                        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    )
                 ),
                 modifier = modifier.fillMaxWidth()
             ) {

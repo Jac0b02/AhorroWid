@@ -9,6 +9,7 @@ import android.os.Bundle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -95,26 +96,40 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 val isLocked = isDeviceLocked(context, id)
 
                 val size = LocalSize.current
-                val isTall = size.height >= 200.dp && size.width < 220.dp
-                val isWide = size.width >= 220.dp && size.height < 190.dp
-                val isLarge = size.width >= 220.dp && size.height >= 190.dp
+                val isShort = size.height < 118.dp
+                val isNarrow = size.width < 210.dp
 
                 when {
-                    isTall -> ExpenseWidgetTallContent(
+                    isShort && !isNarrow -> ExpenseWidgetWideSingleRowContent(
+                        summary = summary,
+                        suggestions = topCashList,
+                        openAppIntent = openMainIntent,
+                        openQuickDialogIntent = quickDialogIntent,
+                        isLocked = isLocked,
+                        width = size.width
+                    )
+                    isShort && isNarrow -> ExpenseWidgetShortCompactContent(
                         summary = summary,
                         suggestions = topCashList,
                         openAppIntent = openMainIntent,
                         openQuickDialogIntent = quickDialogIntent,
                         isLocked = isLocked
                     )
-                    isWide -> ExpenseWidgetWideContent(
+                    size.height >= 195.dp && isNarrow -> ExpenseWidgetTallContent(
                         summary = summary,
                         suggestions = topCashList,
                         openAppIntent = openMainIntent,
                         openQuickDialogIntent = quickDialogIntent,
                         isLocked = isLocked
                     )
-                    isLarge -> ExpenseWidgetLargeContent(
+                    size.height >= 190.dp && !isNarrow -> ExpenseWidgetLargeContent(
+                        summary = summary,
+                        suggestions = topCashList,
+                        openAppIntent = openMainIntent,
+                        openQuickDialogIntent = quickDialogIntent,
+                        isLocked = isLocked
+                    )
+                    !isNarrow -> ExpenseWidgetWideContent(
                         summary = summary,
                         suggestions = topCashList,
                         openAppIntent = openMainIntent,
@@ -155,6 +170,158 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
         }
 
         return isKeyguardLocked || isKeyguardHost || isScreenOffOrLocked
+    }
+
+    /**
+     * Diseño Horizontal Delgado (ej. 3x1, 4x1, 5x1 celdas):
+     * Muestra el resumen semanal a la izquierda y una fila horizontal continua de accesos directos
+     * para aprovechar el ancho total sin comprimir la altura.
+     */
+    @Composable
+    private fun ExpenseWidgetWideSingleRowContent(
+        summary: WeeklyExpenseSummary,
+        suggestions: List<FrequentCashExpense>,
+        openAppIntent: Intent,
+        openQuickDialogIntent: Intent,
+        isLocked: Boolean,
+        width: Dp
+    ) {
+        Row(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .background(GlanceTheme.colors.widgetBackground)
+                .cornerRadius(20.dp)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Resumen de la semana a la izquierda
+            Column(
+                modifier = GlanceModifier
+                    .background(GlanceTheme.colors.surfaceVariant)
+                    .cornerRadius(14.dp)
+                    .clickable(actionStartActivity(openAppIntent))
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isLocked) "🔒 Semana" else "Semana",
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    maxLines = 1
+                )
+                Text(
+                    text = if (isLocked) "$ ••••" else formatCurrencyClean(summary.total),
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurface,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 1
+                )
+            }
+
+            Spacer(modifier = GlanceModifier.width(6.dp))
+
+            // Fila horizontal de botones de acción rápida
+            Row(
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .fillMaxHeight(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val maxItems = if (width >= 320.dp) 3 else 2
+                for (i in 0 until maxItems) {
+                    val item = suggestions.getOrNull(i)
+                    if (item != null) {
+                        QuickExpenseCard(
+                            item = item,
+                            modifier = GlanceModifier.fillMaxHeight().defaultWeight(),
+                            compact = true
+                        )
+                        Spacer(modifier = GlanceModifier.width(4.dp))
+                    }
+                }
+                QuickAddCustomCard(
+                    openQuickDialogIntent = openQuickDialogIntent,
+                    modifier = GlanceModifier.fillMaxHeight().defaultWeight(),
+                    compact = true
+                )
+            }
+        }
+    }
+
+    /**
+     * Diseño Ultra-Compacto (ej. 2x1 celdas):
+     * Muestra el total a la izquierda y los accesos rápidos indispensables en una sola fila.
+     */
+    @Composable
+    private fun ExpenseWidgetShortCompactContent(
+        summary: WeeklyExpenseSummary,
+        suggestions: List<FrequentCashExpense>,
+        openAppIntent: Intent,
+        openQuickDialogIntent: Intent,
+        isLocked: Boolean
+    ) {
+        Row(
+            modifier = GlanceModifier
+                .fillMaxSize()
+                .background(GlanceTheme.colors.widgetBackground)
+                .cornerRadius(18.dp)
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .clickable(actionStartActivity(openAppIntent))
+                    .padding(end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isLocked) "🔒 Total" else "Total",
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    maxLines = 1
+                )
+                Text(
+                    text = if (isLocked) "$ ••••" else formatCurrencyClean(summary.total),
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurface,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    maxLines = 1
+                )
+            }
+
+            Row(
+                modifier = GlanceModifier
+                    .defaultWeight()
+                    .fillMaxHeight(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val topItem = suggestions.firstOrNull()
+                if (topItem != null) {
+                    QuickExpenseCard(
+                        item = topItem,
+                        modifier = GlanceModifier.fillMaxHeight().defaultWeight(),
+                        compact = true
+                    )
+                    Spacer(modifier = GlanceModifier.width(4.dp))
+                }
+                QuickAddCustomCard(
+                    openQuickDialogIntent = openQuickDialogIntent,
+                    modifier = GlanceModifier.fillMaxHeight().defaultWeight(),
+                    compact = true
+                )
+            }
+        }
     }
 
     /**
@@ -286,7 +453,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(GlanceTheme.colors.widgetBackground)
-                .cornerRadius(24.dp)
+                .cornerRadius(22.dp)
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -295,43 +462,44 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                     .defaultWeight()
                     .fillMaxHeight()
                     .background(GlanceTheme.colors.surfaceVariant)
-                    .cornerRadius(18.dp)
+                    .cornerRadius(16.dp)
                     .clickable(actionStartActivity(openAppIntent))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = if (isLocked) "🔒 Total Semanal" else "Total Semanal",
                     style = TextStyle(
                         color = GlanceTheme.colors.onSurfaceVariant,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Medium
-                    )
+                    ),
+                    maxLines = 1
                 )
                 Text(
                     text = if (isLocked) "$ ••••" else formatCurrencyClean(summary.total),
                     style = TextStyle(
                         color = GlanceTheme.colors.onSurface,
-                        fontSize = 20.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     ),
                     maxLines = 1
                 )
-                Spacer(modifier = GlanceModifier.height(4.dp))
+                Spacer(modifier = GlanceModifier.height(3.dp))
                 Text(
-                    text = if (isLocked) "💳 Tarjeta: ••••" else "💳 Tarjeta: ${formatCurrencyClean(summary.tarjeta)}",
+                    text = if (isLocked) "💳 Tarjeta: ••••" else "💳 ${formatCurrencyClean(summary.tarjeta)}",
                     style = TextStyle(
                         color = GlanceTheme.colors.primary,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     ),
                     maxLines = 1
                 )
                 Text(
-                    text = if (isLocked) "💵 Efectivo: ••••" else "💵 Efectivo: ${formatCurrencyClean(summary.efectivo)}",
+                    text = if (isLocked) "💵 Efectivo: ••••" else "💵 ${formatCurrencyClean(summary.efectivo)}",
                     style = TextStyle(
                         color = GlanceTheme.colors.secondary,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     ),
                     maxLines = 1
@@ -345,7 +513,8 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 openQuickDialogIntent = openQuickDialogIntent,
                 modifier = GlanceModifier
                     .defaultWeight()
-                    .fillMaxHeight()
+                    .fillMaxHeight(),
+                compact = true
             )
         }
     }
@@ -427,7 +596,8 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 openQuickDialogIntent = openQuickDialogIntent,
                 modifier = GlanceModifier
                     .fillMaxWidth()
-                    .defaultWeight()
+                    .defaultWeight(),
+                compact = false
             )
         }
     }
@@ -448,8 +618,8 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
             modifier = GlanceModifier
                 .fillMaxSize()
                 .background(GlanceTheme.colors.widgetBackground)
-                .cornerRadius(24.dp)
-                .padding(8.dp)
+                .cornerRadius(20.dp)
+                .padding(6.dp)
         ) {
             // Cabecera compacta con el gasto acumulado
             Row(
@@ -479,14 +649,15 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 )
             }
 
-            Spacer(modifier = GlanceModifier.height(4.dp))
+            Spacer(modifier = GlanceModifier.height(3.dp))
 
             ExpenseWidgetGrid(
                 suggestions = suggestions,
                 openQuickDialogIntent = openQuickDialogIntent,
                 modifier = GlanceModifier
                     .fillMaxWidth()
-                    .defaultWeight()
+                    .defaultWeight(),
+                compact = true
             )
         }
     }
@@ -500,8 +671,10 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
     private fun ExpenseWidgetGrid(
         suggestions: List<FrequentCashExpense>,
         openQuickDialogIntent: Intent,
-        modifier: GlanceModifier
+        modifier: GlanceModifier,
+        compact: Boolean = false
     ) {
+        val spacerSize = if (compact) 4.dp else 6.dp
         Column(modifier = modifier) {
             Row(
                 modifier = GlanceModifier
@@ -510,16 +683,18 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
             ) {
                 QuickExpenseCard(
                     item = suggestions.getOrNull(0),
-                    modifier = GlanceModifier.fillMaxHeight().defaultWeight()
+                    modifier = GlanceModifier.fillMaxHeight().defaultWeight(),
+                    compact = compact
                 )
-                Spacer(modifier = GlanceModifier.width(6.dp))
+                Spacer(modifier = GlanceModifier.width(spacerSize))
                 QuickExpenseCard(
                     item = suggestions.getOrNull(1),
-                    modifier = GlanceModifier.fillMaxHeight().defaultWeight()
+                    modifier = GlanceModifier.fillMaxHeight().defaultWeight(),
+                    compact = compact
                 )
             }
 
-            Spacer(modifier = GlanceModifier.height(6.dp))
+            Spacer(modifier = GlanceModifier.height(spacerSize))
 
             Row(
                 modifier = GlanceModifier
@@ -528,12 +703,14 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
             ) {
                 QuickExpenseCard(
                     item = suggestions.getOrNull(2),
-                    modifier = GlanceModifier.fillMaxHeight().defaultWeight()
+                    modifier = GlanceModifier.fillMaxHeight().defaultWeight(),
+                    compact = compact
                 )
-                Spacer(modifier = GlanceModifier.width(6.dp))
+                Spacer(modifier = GlanceModifier.width(spacerSize))
                 QuickAddCustomCard(
                     openQuickDialogIntent = openQuickDialogIntent,
-                    modifier = GlanceModifier.fillMaxHeight().defaultWeight()
+                    modifier = GlanceModifier.fillMaxHeight().defaultWeight(),
+                    compact = compact
                 )
             }
         }
@@ -542,7 +719,8 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
     @Composable
     private fun QuickExpenseCard(
         item: FrequentCashExpense?,
-        modifier: GlanceModifier
+        modifier: GlanceModifier,
+        compact: Boolean = false
     ) {
         if (item == null) {
             Box(modifier = modifier) {}
@@ -558,7 +736,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
         Column(
             modifier = modifier
                 .background(GlanceTheme.colors.secondaryContainer)
-                .cornerRadius(18.dp)
+                .cornerRadius(if (compact) 14.dp else 16.dp)
                 .clickable(
                     actionRunCallback<QuickCashActionCallback>(
                         actionParametersOf(
@@ -567,7 +745,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                         )
                     )
                 )
-                .padding(vertical = 4.dp, horizontal = 6.dp),
+                .padding(vertical = if (compact) 2.dp else 4.dp, horizontal = if (compact) 4.dp else 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -575,17 +753,17 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 text = amountLabel,
                 style = TextStyle(
                     color = GlanceTheme.colors.onSecondaryContainer,
-                    fontSize = 16.sp,
+                    fontSize = if (compact) 13.sp else 15.sp,
                     fontWeight = FontWeight.Bold
                 ),
                 maxLines = 1
             )
-            Spacer(modifier = GlanceModifier.height(2.dp))
+            Spacer(modifier = GlanceModifier.height(1.dp))
             Text(
-                text = item.concept.take(11),
+                text = item.concept.take(10),
                 style = TextStyle(
                     color = GlanceTheme.colors.onSurfaceVariant,
-                    fontSize = 11.sp,
+                    fontSize = if (compact) 10.sp else 11.sp,
                     fontWeight = FontWeight.Medium
                 ),
                 maxLines = 1
@@ -596,14 +774,15 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
     @Composable
     private fun QuickAddCustomCard(
         openQuickDialogIntent: Intent,
-        modifier: GlanceModifier
+        modifier: GlanceModifier,
+        compact: Boolean = false
     ) {
         Column(
             modifier = modifier
                 .background(GlanceTheme.colors.primary)
-                .cornerRadius(18.dp)
+                .cornerRadius(if (compact) 14.dp else 16.dp)
                 .clickable(actionStartActivity(openQuickDialogIntent))
-                .padding(vertical = 4.dp, horizontal = 6.dp),
+                .padding(vertical = if (compact) 2.dp else 4.dp, horizontal = if (compact) 4.dp else 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -611,7 +790,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 text = "+",
                 style = TextStyle(
                     color = GlanceTheme.colors.onPrimary,
-                    fontSize = 22.sp,
+                    fontSize = if (compact) 16.sp else 19.sp,
                     fontWeight = FontWeight.Bold
                 )
             )
@@ -620,7 +799,7 @@ class ExpenseGlanceWidget : GlanceAppWidget() {
                 text = "Otro",
                 style = TextStyle(
                     color = GlanceTheme.colors.onPrimary,
-                    fontSize = 11.sp,
+                    fontSize = if (compact) 10.sp else 11.sp,
                     fontWeight = FontWeight.Bold
                 ),
                 maxLines = 1

@@ -35,10 +35,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.gastotrack.app.ui.theme.PixelCardShape
 import com.gastotrack.app.ui.theme.PixelPillShape
+import com.gastotrack.app.ui.theme.financialColors
 
 @Composable
 fun BudgetHealthCard(
@@ -48,7 +50,6 @@ fun BudgetHealthCard(
     onAdjustBudgetClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isDark = isSystemInDarkTheme()
     val ratio = if (budgetGoal > 0.0) (spentAmount / budgetGoal).toFloat() else 0f
     val progressClamped = ratio.coerceIn(0f, 1f)
 
@@ -58,23 +59,25 @@ fun BudgetHealthCard(
         label = "budget_progress"
     )
 
-    // Colores semafóricos según el nivel de consumo
+    val finColors = MaterialTheme.financialColors
+
+    // Colores semafóricos según el nivel de consumo centralizados en el sistema de diseño
     val healthColor = when {
         ratio > 0.90f -> MaterialTheme.colorScheme.error
-        ratio >= 0.70f -> if (isDark) Color(0xFFFFB74D) else Color(0xFFE65100)
-        else -> if (isDark) Color(0xFF81C784) else Color(0xFF2E7D32)
+        ratio >= 0.70f -> finColors.warning
+        else -> finColors.income
     }
 
     val healthContainerColor = when {
         ratio > 0.90f -> MaterialTheme.colorScheme.errorContainer
-        ratio >= 0.70f -> if (isDark) Color(0xFF4A3419) else Color(0xFFFFECCF)
-        else -> if (isDark) Color(0xFF1E3924) else Color(0xFFE8F5E9)
+        ratio >= 0.70f -> finColors.warningContainer
+        else -> finColors.incomeContainer
     }
 
     val healthOnContainerColor = when {
         ratio > 0.90f -> MaterialTheme.colorScheme.onErrorContainer
-        ratio >= 0.70f -> if (isDark) Color(0xFFFFE0B2) else Color(0xFF5D2400)
-        else -> if (isDark) Color(0xFFC8E6C9) else Color(0xFF1B5E20)
+        ratio >= 0.70f -> finColors.onWarningContainer
+        else -> finColors.onIncomeContainer
     }
 
     val animatedBarColor by animateColorAsState(
@@ -90,6 +93,11 @@ fun BudgetHealthCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
             contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        border = CardDefaults.outlinedCardBorder().copy(
+            brush = SolidColor(
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+            )
         ),
         modifier = modifier.fillMaxWidth()
     ) {

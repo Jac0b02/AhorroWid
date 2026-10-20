@@ -1,8 +1,15 @@
 package com.gastotrack.app.ui.dashboard
 
+import com.gastotrack.app.data.local.entities.ExpenseEntity
+import com.gastotrack.app.data.local.entities.IncomeEntity
 import java.text.NumberFormat
 import java.time.DayOfWeek
 import java.util.Locale
+
+sealed class DashboardMovement(val timestamp: Long, val key: String) {
+    data class Expense(val expense: ExpenseEntity) : DashboardMovement(expense.timestamp, "exp_${expense.id}")
+    data class Income(val income: IncomeEntity) : DashboardMovement(income.timestamp, "inc_${income.id}")
+}
 
 enum class DashboardPeriod(val title: String, val subtitle: String) {
     WEEK("Esta Semana", "Lun - Dom"),
